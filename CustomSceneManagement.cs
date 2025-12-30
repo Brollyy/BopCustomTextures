@@ -61,7 +61,7 @@ public class CustomSceneManagement : CustomManagement
         {
             return;
         }
-        Plugin.Logger.LogInfo($"Applying custom scene to {sceneKey}");
+        Plugin.Logger.LogInfo($"Applying custom scene: {sceneKey}");
         GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
         JObject jall = CustomScenes[sceneKey];
         foreach (KeyValuePair<string, JToken> dict in jall)

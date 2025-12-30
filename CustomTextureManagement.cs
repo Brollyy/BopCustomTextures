@@ -154,7 +154,7 @@ public class CustomTextureManagement : CustomManagement
             Plugin.Logger.LogInfo($"Initializing all custom sprites (invoked by {sceneKey})");
             InitAllCustomSprites();
         }
-        Plugin.Logger.LogInfo($"Applying custom sprites to {sceneKey}");
+        Plugin.Logger.LogInfo($"Applying custom sprites: {sceneKey}");
         GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
         InitCustomSpritesInGameObject(rootObj, sceneKey);
     }
@@ -200,7 +200,7 @@ public class CustomTextureManagement : CustomManagement
         }
         if (CustomSeperateTextures.ContainsKey(scene) && CustomSeperateTextures[scene].ContainsKey(original.name))
         {
-            Plugin.Logger.LogInfo($" - {scene} - seperate - {original.name}");
+            //Plugin.Logger.LogInfo($" - {scene} - seperate - {original.name}");
             Texture2D tex = CustomSeperateTextures[scene][original.name];
 
             Sprite replacement = Sprite.Create(
