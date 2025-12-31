@@ -15,8 +15,8 @@ public class CustomTextureManagement : CustomManagement
     public static readonly Dictionary<SceneKey, Dictionary<string, Texture2D>> CustomSeperateTextures = [];
     public static readonly Dictionary<SceneKey, Dictionary<string, Sprite>> SpriteMaps = [];
     public static readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
-    public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?/(\w+)/");
-    public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)");
+    public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?/(\w+)/.*\.(?:png|j(?:pe?g|pe|f?if|fi))$", RegexOptions.IgnoreCase);
+    public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegexSeperate = new Regex(@"^(\w+)");
     public static readonly Regex SceneAndSpriteAtlasIndexRegex = new Regex(@"^sactx-(\d+)-\d+x\d+-DXT5\|BC3-_(\w+)Atlas");
 

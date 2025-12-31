@@ -11,7 +11,7 @@ namespace BopCustomTextures;
 public class CustomSceneManagement : CustomManagement
 {
     public static readonly Dictionary<SceneKey, JObject> CustomScenes = [];
-    public static readonly Regex FileRegex = new Regex(@"^level/(\w+).json$");
+    public static readonly Regex FileRegex = new Regex(@"^(?:level|scene)s?/(\w+).json$", RegexOptions.IgnoreCase);
 
     public static bool CheckIsCustomScene(ZipArchiveEntry entry)
     {
