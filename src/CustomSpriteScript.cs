@@ -1,6 +1,8 @@
 ﻿using UnityEngine;
 
 namespace BopCustomTextures;
+
+[DefaultExecutionOrder(2)] // because of flow worms
 internal class CustomSpriteScript : MonoBehaviour
 {
     private Sprite last;
@@ -10,6 +12,7 @@ internal class CustomSpriteScript : MonoBehaviour
     void Awake()
     {
         spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
+        last = spriteRenderer.sprite;
     }
 
     void LateUpdate()

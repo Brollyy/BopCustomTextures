@@ -13,7 +13,8 @@ public class CustomTextureManagement : CustomManagement
 {
     public static readonly Dictionary<SceneKey, Dictionary<int, Texture2D>> CustomAtlasTextures = [];
     public static readonly Dictionary<SceneKey, Dictionary<string, Texture2D>> CustomSeperateTextures = [];
-    public static readonly Dictionary<SceneKey, Dictionary<string, Sprite>> SpriteMaps = [];
+    public static readonly HashSet<SceneKey> CustomSpritesInited = [];
+    public static readonly Dictionary<Texture2D, Dictionary<string, Sprite>> SpriteMaps = [];
     public static readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
     public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?/(\w+)/.*\.(?:png|j(?:pe?g|pe|f?if|fi))$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
@@ -105,9 +106,9 @@ public class CustomTextureManagement : CustomManagement
     {
         foreach (var q in SpriteMaps)
         {
-            SceneKey scene = q.Key;
+            Texture2D tex = q.Key;
             var spriteMap = q.Value;
-            Plugin.Logger.LogInfo($"Unloading custom sprites: {scene}");
+            Plugin.Logger.LogInfo($"Unloading custom sprites: {tex.name}");
             foreach (var w in spriteMap)
             {
                 var sprite = w.Value;
@@ -118,6 +119,7 @@ public class CustomTextureManagement : CustomManagement
             }
         }
         SpriteMaps.Clear();
+        CustomSpritesInited.Clear();
         foreach (var q in CustomAtlasTextures)
         {
             SceneKey scene = q.Key;
@@ -143,6 +145,21 @@ public class CustomTextureManagement : CustomManagement
         TextureMaps.Clear();
     }
 
+    public static void InitCustomTextures(MixtapeLoaderCustom __instance, SceneKey sceneKey)
+    {
+        if (!(CustomAtlasTextures.ContainsKey(sceneKey) || CustomSeperateTextures.ContainsKey(sceneKey)))
+        {
+            return;
+        }
+        if (!CustomSpritesInited.Contains(sceneKey))
+        {
+            Plugin.Logger.LogInfo($"Initializing all custom sprites (invoked by {sceneKey})");
+            InitAllCustomSprites();
+        }
+        Plugin.Logger.LogInfo($"Applying custom sprites: {sceneKey}");
+        GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
+        InitCustomSpritesInGameObject(rootObj, sceneKey);
+    }
 
     public static void InitAllCustomSprites()
     {
@@ -153,25 +170,9 @@ public class CustomTextureManagement : CustomManagement
         }
     }
 
-    public static void InitCustomTextures(MixtapeLoaderCustom __instance, SceneKey sceneKey)
-    {
-        if (!(CustomAtlasTextures.ContainsKey(sceneKey) || CustomSeperateTextures.ContainsKey(sceneKey)))
-        {
-            return;
-        }
-        if (!SpriteMaps.ContainsKey(sceneKey))
-        {
-            Plugin.Logger.LogInfo($"Initializing all custom sprites (invoked by {sceneKey})");
-            InitAllCustomSprites();
-        }
-        Plugin.Logger.LogInfo($"Applying custom sprites: {sceneKey}");
-        GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
-        InitCustomSpritesInGameObject(rootObj, sceneKey);
-    }
-
     public static void InitCustomSpritesInGameObject(GameObject rootObj, SceneKey scene)
     {
-        var spriteRenderers = rootObj.GetComponentsInChildren<SpriteRenderer>();
+        var spriteRenderers = rootObj.GetComponentsInChildren<SpriteRenderer>(true);
         foreach(var spriteRenderer in spriteRenderers)
         {
             ReplaceCustomSprite(spriteRenderer, scene);
@@ -186,9 +187,9 @@ public class CustomTextureManagement : CustomManagement
         {
             return;
         }
-        if (SpriteMaps[scene].ContainsKey(spriteRenderer.sprite.name))
+        if (SpriteMaps.ContainsKey(spriteRenderer.sprite.texture))
         {
-            spriteRenderer.sprite = SpriteMaps[scene][spriteRenderer.sprite.name];
+            spriteRenderer.sprite = SpriteMaps[spriteRenderer.sprite.texture][spriteRenderer.sprite.name];
         }
     }
     
@@ -203,11 +204,12 @@ public class CustomTextureManagement : CustomManagement
         {
             return;
         }
-        if (!SpriteMaps.ContainsKey(scene))
+        CustomSpritesInited.Add(scene);
+        if (!SpriteMaps.ContainsKey(original.texture))
         {
-            SpriteMaps[scene] = new Dictionary<string, Sprite>();
+            SpriteMaps[original.texture] = new Dictionary<string, Sprite>();
         }
-        else if (SpriteMaps[scene].ContainsKey(original.name))
+        else if (SpriteMaps[original.texture].ContainsKey(original.name))
         {
             return;
         }
@@ -247,7 +249,7 @@ public class CustomTextureManagement : CustomManagement
             verticesNative.Dispose();
             uvsNative.Dispose();
 
-            SpriteMaps[scene][original.name] = replacement;
+            SpriteMaps[original.texture][original.name] = replacement;
         }
         else if (CustomAtlasTextures.ContainsKey(scene) && CustomAtlasTextures[scene].ContainsKey(spriteAtlasIndex))
         {
@@ -266,11 +268,11 @@ public class CustomTextureManagement : CustomManagement
             CopySpriteMesh(original, replacement);
             replacement.name = original.name;
 
-            SpriteMaps[scene][original.name] = replacement;
+            SpriteMaps[original.texture][original.name] = replacement;
         }
         else
         {
-            SpriteMaps[scene][original.name] = original;
+            SpriteMaps[original.texture][original.name] = original;
         }
     }
 
