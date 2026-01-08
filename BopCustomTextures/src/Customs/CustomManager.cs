@@ -1,0 +1,66 @@
+﻿using BopCustomTextures.Logging;
+using System.IO;
+
+namespace BopCustomTextures.Customs;
+
+public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(logger)
+{
+    public CustomSceneManager sceneManager = new CustomSceneManager(logger);
+    public CustomTextureManager textureManager = new CustomTextureManager(logger);
+    public CustomFileManager fileManager = new CustomFileManager(logger, tempPath);
+
+    public void ReadDirectory(string path, bool backup)
+    {
+        int filesLoaded = 0;
+        var subpaths = Directory.EnumerateDirectories(path);
+        foreach (var subpath in subpaths)
+        {
+            var backup2 = false;
+            if (CustomSceneManager.IsCustomSceneDirectory(subpath))
+            {
+                filesLoaded += sceneManager.LocateCustomScenes(subpath, path);
+                backup2 = backup;
+            }
+            else if (CustomTextureManager.IsCustomTextureDirectory(subpath))
+            {
+                filesLoaded += textureManager.LocateCustomTextures(subpath, path);
+                backup2 = backup;
+            }
+            if (backup)
+            {
+                fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
+            }
+        }
+        if (filesLoaded > 0)
+        {
+            logger.LogInfo($"Loaded {filesLoaded} custom assets");
+        }
+        else
+        {
+            logger.LogInfo($"No custom assets found");
+        }
+    }
+
+    public void WriteDirectory(string path)
+    {
+        fileManager.WriteDirectory(path);
+    }
+
+    public void ResetAll()
+    {
+        sceneManager.UnloadCustomScenes();
+        textureManager.UnloadCustomTextures();
+        fileManager.DeleteTempDirectory();
+    }
+
+    public void DeleteTempDirectory()
+    {
+        fileManager.DeleteTempDirectory();
+    }
+
+    public void InitScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
+    {
+        sceneManager.InitCustomScene(__instance, sceneKey);
+        textureManager.InitCustomTextures(__instance, sceneKey);
+    }
+}

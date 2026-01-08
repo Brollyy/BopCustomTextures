@@ -4,12 +4,14 @@ using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using ILogger = BopCustomTextures.Logging.ILogger;
 
-namespace BopCustomTextures;
+namespace BopCustomTextures.Customs;
 
-public class CustomSceneManagement : CustomManagement
+public class CustomSceneManager(ILogger logger) : BaseCustomManager(logger)
 {
-    public static readonly Dictionary<SceneKey, JObject> CustomScenes = [];
+    public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger);
+    public readonly Dictionary<SceneKey, JObject> CustomScenes = [];
     public static readonly Regex PathRegex = new Regex(@"\\(?:level|scene)s?$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegex = new Regex(@"(\w+).json$", RegexOptions.IgnoreCase);
 
@@ -18,7 +20,7 @@ public class CustomSceneManagement : CustomManagement
         return PathRegex.IsMatch(path);
     }
 
-    public static int LocateCustomScenes(string path, string parentPath)
+    public int LocateCustomScenes(string path, string parentPath)
     {
         int filesLoaded = 0;
         var fullFilepaths = Directory.EnumerateFiles(path);
@@ -33,7 +35,7 @@ public class CustomSceneManagement : CustomManagement
         return filesLoaded;
     }
 
-    public static bool CheckIsCustomScene(string path, string localPath)
+    public bool CheckIsCustomScene(string path, string localPath)
     {
         Match match = FileRegex.Match(localPath);
         if (match.Success)
@@ -41,7 +43,7 @@ public class CustomSceneManagement : CustomManagement
             SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
             if (scene != SceneKey.Invalid)
             {
-                Plugin.LogFileLoading($"Found custom scene: {scene}");
+                logger.LogFileLoading($"Found custom scene: {scene}");
 
                 LoadCustomScene(path, localPath, scene);
                 return true;
@@ -50,11 +52,11 @@ public class CustomSceneManagement : CustomManagement
         return false;
     }
 
-    public static void LoadCustomScene(string path, string localPath, SceneKey scene)
+    public void LoadCustomScene(string path, string localPath, SceneKey scene)
     {
         try
         {
-            byte[] bytes = ReadFile(path, localPath);
+            byte[] bytes = File.ReadAllBytes(path);
             MemoryStream memStream = new MemoryStream(bytes);
             using StreamReader reader = new StreamReader(memStream);
             using JsonTextReader jsonReader = new JsonTextReader(reader);
@@ -62,33 +64,33 @@ public class CustomSceneManagement : CustomManagement
         }
         catch (JsonReaderException e)
         {
-            Plugin.Logger.LogError(e);
+            logger.LogError(e);
             CustomScenes.Remove(scene);
         }
-        
+
     }
 
-    public static void UnloadCustomScenes()
+    public void UnloadCustomScenes()
     {
         if (CustomScenes.Count > 0)
         {
-            Plugin.LogUnloading("Unloading all custom scenes");
+            logger.LogUnloading("Unloading all custom scenes");
             CustomScenes.Clear();
         }
     }
 
-    public static void InitCustomScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
+    public void InitCustomScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
     {
         if (!CustomScenes.ContainsKey(sceneKey))
         {
             return;
         }
-        Plugin.Logger.LogInfo($"Applying custom scene: {sceneKey}");
+        logger.LogInfo($"Applying custom scene: {sceneKey}");
         GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
         JObject jall = CustomScenes[sceneKey];
         foreach (KeyValuePair<string, JToken> dict in jall)
         {
-            CustomInitializer.InitCustomGameObject(dict.Value, dict.Key, rootObj);
+            jsonInitializer.InitCustomGameObject(dict.Value, dict.Key, rootObj);
         }
     }
 }

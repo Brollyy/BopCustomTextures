@@ -1,16 +1,25 @@
-﻿using BepInEx;
+﻿using BopCustomTextures.Customs;
+using BopCustomTextures.Logging;
+using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine.SceneManagement;
+using System;
+using System.IO;
+using System.Diagnostics;
 
 namespace BopCustomTextures;
 
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 public class Plugin : BaseUnityPlugin
 {
-    internal static new ManualLogSource Logger;
+
+    public static new ManualLogSource Logger;
+    public static CustomManager Manager;
     public Harmony Harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
+
+    private static ConfigEntry<bool> saveCustomFiles;
 
     private static ConfigEntry<LogLevel> logFileLoading;
     private static ConfigEntry<LogLevel> logUnloading;
@@ -24,10 +33,15 @@ public class Plugin : BaseUnityPlugin
         Logger = base.Logger;
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
+        saveCustomFiles = Config.Bind("Editor",
+            "SaveCustomFiles",
+            true,
+            "When opening a mixtape in the editor with custom files, save these files whenever the mixtape is saved");
+
         logFileLoading = Config.Bind("Logging",
             "LogFileLoading",
             LogLevel.Debug,
-            "Log level for verbose file loading of custom assets in .bop/.riq archives");
+            "Log level for verbose file loading of custom files in .bop archives");
 
         logUnloading = Config.Bind("Logging",
             "LogUnloading",
@@ -49,8 +63,20 @@ public class Plugin : BaseUnityPlugin
             LogLevel.None,
             "Log level for vanilla scene loading, including scene name + build index (for locating level and sharedassets files)");
 
+        var customlogger = new ManualLogSourceCustom(Logger,
+            logFileLoading.Value,
+            logUnloading.Value,
+            logSeperateTextureSprites.Value,
+            logAtlasTextureSprites.Value
+            );
+        Manager = new CustomManager(customlogger, GetTempPath());
 
         Harmony.PatchAll();
+
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+
+        CustomFileManager.CleanUpTempDirectories(GetTempParentPath());
 
         if (logSceneIndices.Value != LogLevel.None)
         {
@@ -61,30 +87,12 @@ public class Plugin : BaseUnityPlugin
         }
     }
 
-    public static void LogFileLoading(object data)
-    {
-        Logger.Log(logFileLoading.Value, data);
-    }
-    public static void LogUnloading(object data)
-    {
-        Logger.Log(logUnloading.Value, data);
-    }
-    public static void LogSeperateTextureSprites(object data)
-    {
-        Logger.Log(logSeperateTextureSprites.Value, data);
-    }
-    public static void LogAtlasTextureSprites(object data)
-    {
-        Logger.Log(logAtlasTextureSprites.Value, data);
-    }
-
-
     [HarmonyPatch(typeof(BopMixtapeSerializerV0), "ReadDirectory")]
     private static class BopMixtapeSerializerReadDirectoryPatch
     {
         static void Postfix(string path)
         {
-            CustomManagement.ReadDirectory(path);
+            Manager.ReadDirectory(path, saveCustomFiles.Value && CustomFileManager.ShouldBackupDirectory());
         }
     }
 
@@ -93,7 +101,7 @@ public class Plugin : BaseUnityPlugin
     {
         static void Postfix(string path)
         {
-            CustomManagement.WriteDirectory(path);
+            Manager.WriteDirectory(path);
         }
     }
 
@@ -102,7 +110,7 @@ public class Plugin : BaseUnityPlugin
     {
         static void Postfix()
         {
-            CustomManagement.ResetAll();
+            Manager.ResetAll();
         }
     }
 
@@ -111,7 +119,29 @@ public class Plugin : BaseUnityPlugin
     {
         static void Postfix(MixtapeLoaderCustom __instance, SceneKey sceneKey)
         {
-            CustomManagement.InitScene(__instance, sceneKey);
+            Manager.InitScene(__instance, sceneKey);
         }
+    }
+
+    private void OnProcessExit(object sender, EventArgs e)
+    {
+        Manager.DeleteTempDirectory();
+    }
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        Manager.DeleteTempDirectory();
+    }
+    private void OnApplicationQuit()
+    {
+        Manager.DeleteTempDirectory();
+    }
+
+    public static string GetTempParentPath()
+    {
+        return Path.Combine(Path.GetTempPath(), "BepInEx", MyPluginInfo.PLUGIN_GUID);
+    }
+    public static string GetTempPath()
+    {
+        return Path.Combine(Path.GetTempPath(), "BepInEx", MyPluginInfo.PLUGIN_GUID, $"{Process.GetCurrentProcess().Id}");
     }
 }

@@ -2,22 +2,23 @@
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using Color = UnityEngine.Color;
+using ILogger = BopCustomTextures.Logging.ILogger;
 
-namespace BopCustomTextures;
-public class CustomInitializer
+namespace BopCustomTextures.Customs;
+public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
 {
-    public static void InitCustomGameObject(JToken jobj, string path, GameObject rootObj)
+    public void InitCustomGameObject(JToken jobj, string path, GameObject rootObj)
     {
         if (jobj.GetType() != typeof(JObject))
         {
-            Plugin.Logger.LogWarning($"JSON GameObject\"{path}\" is a {jobj.GetType()} when it should be a JObject");
+            logger.LogWarning($"JSON GameObject\"{path}\" is a {jobj.GetType()} when it should be a JObject");
             return;
         }
         var jgameObj = (JObject)jobj;
         GameObject obj = FindGameObjectInChildren(rootObj, path);
         if (obj == null)
         {
-            Plugin.Logger.LogWarning($"JSON GameObject\"{path}\" does not correspond to a gameObject in the scene");
+            logger.LogWarning($"JSON GameObject\"{path}\" does not correspond to a gameObject in the scene");
             return;
         }
         foreach (KeyValuePair<string, JToken> dict in jgameObj)
@@ -33,11 +34,11 @@ public class CustomInitializer
         }
     }
 
-    public static void InitCustomComponent(JToken jobj, string name, GameObject obj)
+    public void InitCustomComponent(JToken jobj, string name, GameObject obj)
     {
         if (jobj.GetType() != typeof(JObject))
         {
-            Plugin.Logger.LogWarning($"JSON Componnent\"{name}\" is a {jobj.GetType()} when it should be a JObject");
+            logger.LogWarning($"JSON Componnent\"{name}\" is a {jobj.GetType()} when it should be a JObject");
             return;
         }
         JObject jcomponent = (JObject)jobj;
@@ -51,24 +52,24 @@ public class CustomInitializer
                 InitCustomSpriteRenderer(jcomponent, obj);
                 break;
             default:
-                Plugin.Logger.LogWarning($"JSON Componnent \"{name}\" is an unknown/unsupported component");
+                logger.LogWarning($"JSON Componnent \"{name}\" is an unknown/unsupported component");
                 break;
         }
     }
 
     // COMPONENTS //
-    public static void InitCustomTransform(JObject jtransform, Transform transform)
+    public void InitCustomTransform(JObject jtransform, Transform transform)
     {
         transform.localPosition = InitCustomVector3(jtransform, "LocalPosition", transform.localPosition);
         transform.localRotation = InitCustomQuaternion(jtransform, "LocalRotation", transform.localRotation);
         transform.localScale = InitCustomVector3(jtransform, "LocalScale", transform.localScale);
     }
-    public static void InitCustomSpriteRenderer(JObject jspriteRenderer, GameObject obj)
+    public void InitCustomSpriteRenderer(JObject jspriteRenderer, GameObject obj)
     {
         var spriteRenderer = obj.GetComponent<SpriteRenderer>();
         if (spriteRenderer == null)
         {
-            Plugin.Logger.LogWarning($"GameObject \"{obj.name}\" does not have a spriteRenderer");
+            logger.LogWarning($"GameObject \"{obj.name}\" does not have a spriteRenderer");
             return;
         }
         spriteRenderer.color = InitCustomColor(jspriteRenderer, "Color", spriteRenderer.color);
@@ -78,7 +79,7 @@ public class CustomInitializer
     }
 
     // STRUCTS //
-    public static Vector3 InitCustomVector2(JObject jobj, string key, Vector2 vector2)
+    public Vector3 InitCustomVector2(JObject jobj, string key, Vector2 vector2)
     {
         if (jobj.ContainsKey(key))
         {
@@ -90,12 +91,12 @@ public class CustomInitializer
             }
             else
             {
-                Plugin.Logger.LogWarning($"JSON Vector2 \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
+                logger.LogWarning($"JSON Vector2 \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
             }
         }
         return vector2;
     }
-    public static Vector3 InitCustomVector3(JObject jobj, string key, Vector3 vector3)
+    public Vector3 InitCustomVector3(JObject jobj, string key, Vector3 vector3)
     {
         if (jobj.ContainsKey(key))
         {
@@ -106,15 +107,15 @@ public class CustomInitializer
                 vector3.y = InitCustomFloat(jvector3, "y", vector3.y);
                 vector3.z = InitCustomFloat(jvector3, "z", vector3.z);
             }
-            else 
+            else
             {
-                Plugin.Logger.LogWarning($"JSON Vector3 \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
+                logger.LogWarning($"JSON Vector3 \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
             }
-        } 
+        }
         return vector3;
     }
 
-    public static Quaternion InitCustomQuaternion(JObject jobj, string key, Quaternion quaternion)
+    public Quaternion InitCustomQuaternion(JObject jobj, string key, Quaternion quaternion)
     {
         if (jobj.ContainsKey(key))
         {
@@ -128,13 +129,13 @@ public class CustomInitializer
             }
             else
             {
-                Plugin.Logger.LogWarning($"JSON Quaternion \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
+                logger.LogWarning($"JSON Quaternion \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
             }
         }
         return quaternion;
     }
 
-    public static Color InitCustomColor(JObject jobj, string key, Color color)
+    public Color InitCustomColor(JObject jobj, string key, Color color)
     {
         if (jobj.ContainsKey(key))
         {
@@ -148,14 +149,14 @@ public class CustomInitializer
             }
             else
             {
-                Plugin.Logger.LogWarning($"JSON Color \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
+                logger.LogWarning($"JSON Color \"{key}\" is a {jobj[key].GetType()} when it should be a JObject");
             }
         }
         return color;
     }
 
     // PRIMITIVES // 
-    public static float InitCustomFloat(JObject jobj, string key, float num)
+    public float InitCustomFloat(JObject jobj, string key, float num)
     {
         if (jobj.ContainsKey(key))
         {
@@ -168,18 +169,18 @@ public class CustomInitializer
                 }
                 else
                 {
-                    Plugin.Logger.LogWarning($"JSON float \"{key}\" is a {jval.Type} when it should be a float");
+                    logger.LogWarning($"JSON float \"{key}\" is a {jval.Type} when it should be a float");
                 }
             }
             else
             {
-                Plugin.Logger.LogWarning($"JSON float \"{key}\" is a {jobj[key].GetType()} when it should be a float");
+                logger.LogWarning($"JSON float \"{key}\" is a {jobj[key].GetType()} when it should be a float");
             }
         }
         return num;
     }
 
-    public static bool InitCustomBool(JObject jobj, string key, bool val)
+    public bool InitCustomBool(JObject jobj, string key, bool val)
     {
         if (jobj.ContainsKey(key))
         {
@@ -192,12 +193,12 @@ public class CustomInitializer
                 }
                 else
                 {
-                    Plugin.Logger.LogWarning($"JSON float \"{key}\" is a {jval.Type} when it should be a boolean");
+                    logger.LogWarning($"JSON float \"{key}\" is a {jval.Type} when it should be a boolean");
                 }
             }
             else
             {
-                Plugin.Logger.LogWarning($"JSON float \"{key}\" is a {jobj[key].GetType()} when it should be a boolean");
+                logger.LogWarning($"JSON float \"{key}\" is a {jobj[key].GetType()} when it should be a boolean");
             }
         }
         return val;

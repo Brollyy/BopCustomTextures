@@ -1,12 +1,14 @@
-﻿using UnityEngine;
+﻿using BopCustomTextures.Customs;
+using UnityEngine;
 
-namespace BopCustomTextures;
+namespace BopCustomTextures.Scripts;
 
 [DefaultExecutionOrder(2)] // because of flow worms
 internal class CustomSpriteScript : MonoBehaviour
 {
     private Sprite last;
     public SceneKey scene;
+    public CustomTextureManager textureManager;
     public SpriteRenderer spriteRenderer;
 
     void Awake()
@@ -19,7 +21,7 @@ internal class CustomSpriteScript : MonoBehaviour
     {
         if (spriteRenderer.sprite != last)
         {
-            CustomTextureManagement.ReplaceCustomSprite(spriteRenderer, scene);
+            textureManager.ReplaceCustomSprite(spriteRenderer, scene);
             last = spriteRenderer.sprite;
         }
     }
