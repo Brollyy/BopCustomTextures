@@ -12,6 +12,9 @@ public class BaseCustomManager(ILogger logger)
     public static readonly AccessTools.FieldRef<MixtapeLoaderCustom, Dictionary<SceneKey, GameObject>> rootObjectsRef =
         AccessTools.FieldRefAccess<MixtapeLoaderCustom, Dictionary<SceneKey, GameObject>>("rootObjects");
 
+    public static readonly AccessTools.FieldRef<MixtapeLoaderCustom, bool> cancelLoadRef =
+        AccessTools.FieldRefAccess<MixtapeLoaderCustom, bool>("cancelLoad");
+
     protected static SceneKey ToSceneKeyOrInvalid(string name)
     {
         string[] namesAffixed =

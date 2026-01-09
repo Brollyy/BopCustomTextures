@@ -60,6 +60,10 @@ public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(
 
     public void InitScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
     {
+        if (cancelLoadRef(__instance))
+        {
+            return;
+        }
         sceneManager.InitCustomScene(__instance, sceneKey);
         textureManager.InitCustomTextures(__instance, sceneKey);
     }
