@@ -152,10 +152,3 @@ After running Bits & Bops with the latest version of this plugin installed, a co
 | `LogSceneIndices`            | BepInEx.LogLevel  | `None`        | <p>Log level for vanilla scene loading, including scene name + build index.</p> <p>Useful when you need to rip sprites from a sprite atlas, which requires knowing the build index of a game to locate its sharedassets file.</p> |
 
 
-
-
-
-
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>hi
-
-
