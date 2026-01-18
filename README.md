@@ -5,7 +5,7 @@ Demo: https://youtu.be/pZQ74qy7PbY
 
 ## Installation
 - Install [BepInEx 5.x](https://docs.bepinex.dev/articles/user_guide/installation/index.html) in Bits & Bops.
-- Download `BopCustomTextures.dll` from the latest [release](https://github.com/AnonUserGuy/BopCustomTextures/releases/), and place it in `BepinEx\plugins\`.
+- Download `BopCustomTextures.dll` from the latest [release](https://github.com/AnonUserGuy/BopCustomTextures/releases/), and place it in ``<Bits & Bops Installation>/BepinEx/plugins/``.
 
 ## Usage
 ### File Structure
@@ -134,14 +134,14 @@ The following components can currently be modified, with the following fields av
 For fields with struct types like Vector3, Quaternion, and Color, you make the field's value a JSON object with fields for each member of the struct. 
  - Vectors have members ``x``, ``y``, and ``z`` for Vector3.
  - Quaternions have members ``x``, ``y``, ``z``, ``w``.
- - Color have members ``r``, ``g``, ``b``, ``a``.
+ - Colors have members ``r``, ``g``, ``b``, ``a``.
 
 For fields with primitive types like Boolean and Float, you make the field's value a JSON primitive.
 
 #### Finding GameObject Names and Components
 Short of ripping an entire Unity project from Bits & Bops, I recommend using the BepInEx plugin [RuntimeUnityEditor](https://github.com/ManlyMarco/RuntimeUnityEditor) to inspect the GameObject hierarchy of rhythm games.
 
-## Configuration
+### Configuration
 After running Bits & Bops with the latest version of this plugin installed, a configuration file will be generated at `BepinEx\config\BopCustomTextures.cfg`. Open this file with a text editor to access the following configs:
 | Name                         | Type              | Default       | Description   |
 | ---------------------------- | ----------------- | ------------- | ------------- |
@@ -152,4 +152,23 @@ After running Bits & Bops with the latest version of this plugin installed, a co
 | `LogAtlasTextureSprites`     | BepInEx.LogLevel  | `Debug`       | <p>Log level for verbose custom sprite creation from atlas textures.</p> |
 | `LogSceneIndices`            | BepInEx.LogLevel  | `None`        | <p>Log level for vanilla scene loading, including scene name + build index.</p> <p>Useful when you need to rip sprites from a sprite atlas, which requires knowing the build index of a game to locate its sharedassets file.</p> |
 
+## Building 
+### Prequisites
+- Bits & Bops v1.6+
+- Microsoft .NET SDK v4.7.2+
+- Visual Studio 2022 (Optional)
 
+### Steps
+1. Clone this repository using ``git clone https://github.com/AnonUserGuy/BopCustomTextures.git``.
+2. Copy ``<Bits & Bops installation>/Bits & Bops_Data/Managed/Assembly-CSharp.dll`` into ``BopCustomTextures/lib/``.
+3. Build
+    - Using CLI:
+      ```bash
+      dotnet restore BopCustomTextures.sln
+      dotnet build BopCustomTextures.sln
+      ```
+    - Using Visual Studio 2022:
+       - Open BopCustomTextures.sln with Visual Studio 2022.
+       - Set build mode to "release".
+       - Build project.
+4. Copy ``BopCustomTextures/BopCustomTextures/bin/Release/net472/BopCustomTextures.dll`` into ``<Bits & Bops Installation>/BepinEx/plugins/``.
