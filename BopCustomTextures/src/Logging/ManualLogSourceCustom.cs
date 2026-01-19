@@ -2,6 +2,14 @@ using BepInEx.Logging;
 
 namespace BopCustomTextures.Logging;
 
+/// <summary>
+/// Wrapper class for BepInEx's ManualLogSource with special methods for log messages with configurable log levels.
+/// </summary>
+/// <param name="logger">Internal BepInEx ManualLogSource</param>
+/// <param name="logFileLoading">Log level for file loading messages</param>
+/// <param name="logUnloading">Log level for asset unloading messages</param>
+/// <param name="logSeperateTextureSprites">Log level for sprite creation from seperate textures</param>
+/// <param name="logAtlasTextureSprites">Log level for sprite creation from atlas textures</param>
 public class ManualLogSourceCustom(ManualLogSource logger, LogLevel logFileLoading, LogLevel logUnloading, LogLevel logSeperateTextureSprites, LogLevel logAtlasTextureSprites) : ILogger
 {
     private ManualLogSource logger = logger;

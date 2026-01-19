@@ -1,4 +1,8 @@
 ﻿namespace BopCustomTextures.Logging;
+
+/// <summary>
+/// Logging interface specific to BopCustomTextures. Includes special methods for log messages with configurable log levels.
+/// </summary>
 public interface ILogger
 {
     public void LogFileLoading(object data);

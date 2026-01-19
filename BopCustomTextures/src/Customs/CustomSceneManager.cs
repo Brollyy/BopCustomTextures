@@ -8,6 +8,10 @@ using ILogger = BopCustomTextures.Logging.ILogger;
 
 namespace BopCustomTextures.Customs;
 
+/// <summary>
+/// Manages scene mods, including loading them from the source file and applying them when the mixtape is played.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
 public class CustomSceneManager(ILogger logger) : BaseCustomManager(logger)
 {
     public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger);

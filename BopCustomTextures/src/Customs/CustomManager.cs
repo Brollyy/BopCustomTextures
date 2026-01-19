@@ -3,6 +3,11 @@ using System.IO;
 
 namespace BopCustomTextures.Customs;
 
+/// <summary>
+/// Manages all custom assets using specific manager classes.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
+/// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
 public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(logger)
 {
     public CustomSceneManager sceneManager = new CustomSceneManager(logger);

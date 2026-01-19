@@ -10,6 +10,10 @@ using ILogger = BopCustomTextures.Logging.ILogger;
 
 namespace BopCustomTextures.Customs;
 
+/// <summary>
+/// Manages custom textures, including loading them from source files and applying them when the mixtape is played.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
 public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
 {
     public readonly Dictionary<SceneKey, Dictionary<int, Texture2D>> CustomAtlasTextures = [];
@@ -197,6 +201,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
 
     public void InitCustomSprites(SceneKey scene)
     {
+        // No way to obtain sprites only used by a certain scene, so all sprites have to be iterated through
         Sprite[] sprites = Resources.FindObjectsOfTypeAll<Sprite>();
         HashSet<Sprite> nonPackedSprites = [];
         foreach (var sprite in sprites)
@@ -207,6 +212,8 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
             }
         }
         
+        // CreateCustomSprites only covers base sprites included in a sprite atlas.
+        // for base sprites not included in a sprite atlas (like a handful from molecano), the following will fix
         foreach (var a in CustomSeperateTexturesNotInited[scene])
         {
             Texture2D tex = a.Key;
@@ -231,6 +238,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
                 nonPackedSprites.Remove(ogSprite);
             }
         }
+
         CustomSeperateTexturesNotInited.Remove(scene);
         CustomSpritesInited.Add(scene);
     }
@@ -266,6 +274,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
         {
             if (CustomSprites.Contains(original))
             {
+                // sprite may need replacing by step 2 of InitCustomSprites
                 return true;
             } 
             else
@@ -318,19 +327,23 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
             original.border
         );
         replacement.name = original.name;
+
+        // create new sprite with bounds adjusted if new texture larger than old texture
         Rect vertexBox = GetBoundingBox(original.vertices);
         vertexBox = GetWithDimensionsCentered(vertexBox, tex.width / original.pixelsPerUnit, tex.height / original.pixelsPerUnit);
+
+        // apply new sprites bounds
         Vector3[] vertices = [
             new Vector3(vertexBox.xMin, vertexBox.yMax, 0),
-                new Vector3(vertexBox.xMax, vertexBox.yMax, 0),
-                new Vector3(vertexBox.xMin, vertexBox.yMin, 0),
-                new Vector3(vertexBox.xMax, vertexBox.yMin, 0)
+            new Vector3(vertexBox.xMax, vertexBox.yMax, 0),
+            new Vector3(vertexBox.xMin, vertexBox.yMin, 0),
+            new Vector3(vertexBox.xMax, vertexBox.yMin, 0)
         ];
         Vector2[] uvs = [
             new Vector2(0, 1),
-                new Vector2(1, 1),
-                new Vector2(0, 0),
-                new Vector2(1, 0)
+            new Vector2(1, 1),
+            new Vector2(0, 0),
+            new Vector2(1, 0)
         ];
         NativeArray<Vector3> verticesNative = new NativeArray<Vector3>(vertices, Allocator.Temp);
         NativeArray<Vector2> uvsNative = new NativeArray<Vector2>(uvs, Allocator.Temp);
@@ -345,8 +358,9 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
 
     public void CreateCustomAtlasSprite(Sprite original, Texture2D tex, SceneKey scene)
     {
-        // Logs the creation of all atlas sprites because it takes soooo long that it seems like the game crashed
+        // Logs the creation of all atlas sprites seperately it takes soooo long that it seems like the game crashed
         logger.LogAtlasTextureSprites($" - {scene} - atlas - {original.name}");
+
         Sprite replacement = Sprite.Create(
             tex,
             original.rect,
@@ -356,7 +370,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
             SpriteMeshType.Tight,
             original.border
         );
-        CopySpriteMesh(original, replacement);
+        CopySpriteMesh(original, replacement); // Source of huge load time for custom atlas textures, should (somehow) be optimized
         replacement.name = original.name;
 
         SpriteMaps[original.texture][original.name] = replacement;
@@ -367,9 +381,9 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
     {
         int vertexCount = srcSprite.GetVertexCount();
         destSprite.SetVertexCount(vertexCount);
-        CopyVertexAttribute<Vector3>(srcSprite, destSprite, VertexAttribute.Position);
-        CopyIndices(srcSprite, destSprite);
-        CopyVertexAttribute<Vector2>(srcSprite, destSprite, VertexAttribute.TexCoord0);
+        CopyVertexAttribute<Vector3>(srcSprite, destSprite, VertexAttribute.Position); // can this be done with OverrideGeometry? Would that help?
+        CopyIndices(srcSprite, destSprite); // ditto this
+        CopyVertexAttribute<Vector2>(srcSprite, destSprite, VertexAttribute.TexCoord0); // unavoidable
     }
 
     public static void CopyVertexAttribute<T>(Sprite srcSprite, Sprite destSprite, VertexAttribute attribute)
@@ -408,38 +422,6 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
             }
         }
         return TextureMaps[sprite.texture];
-    }
-
-    public void PrintAllSpriteInfo(Sprite sprite)
-    {
-        logger.LogInfo(sprite.name);
-        logger.LogInfo($" - rect: {sprite.rect}");
-        logger.LogInfo($" - pivot: {sprite.pivot}");
-        logger.LogInfo($" - pixelsPerUnit: {sprite.pixelsPerUnit}");
-        logger.LogInfo($" - border: {sprite.border}");
-        logger.LogInfo($" - packingMode: {sprite.packingMode}");
-        logger.LogInfo($" - packingRotation: {sprite.packingRotation}");
-        if (sprite.packingMode != SpritePackingMode.Tight)
-        {
-            logger.LogInfo($" - textureRect: {sprite.textureRect}");
-        }
-        logger.LogInfo($" - textureRectOffset: {sprite.textureRectOffset}");
-
-        logger.LogInfo($" - vertices ({sprite.vertices.Length}):");
-        for (int i = 0; i < sprite.vertices.Length; i++)
-        {
-            logger.LogInfo($" - - {sprite.vertices[i]}");
-        }
-        logger.LogInfo($" - uv ({sprite.uv.Length}):");
-        for (int i = 0; i < sprite.uv.Length; i++)
-        {
-            logger.LogInfo($" - - {sprite.uv[i]}");
-        }
-        logger.LogInfo($" - triangles ({sprite.triangles.Length}):");
-        for (int i = 0; i < sprite.triangles.Length; i++)
-        {
-            logger.LogInfo($" - - {sprite.triangles[i]}");
-        }
     }
 
     public static Rect GetBoundingBox(Vector2[] vertices)

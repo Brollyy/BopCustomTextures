@@ -5,6 +5,11 @@ using Color = UnityEngine.Color;
 using ILogger = BopCustomTextures.Logging.ILogger;
 
 namespace BopCustomTextures.Customs;
+
+/// <summary>
+/// Class of methods used to apply scene mods.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
 public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
 {
     public void InitCustomGameObject(JToken jobj, string path, GameObject rootObj)

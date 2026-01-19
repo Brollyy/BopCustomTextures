@@ -3,6 +3,9 @@ using UnityEngine;
 
 namespace BopCustomTextures.Scripts;
 
+/// <summary>
+/// Unity component that swaps a spriteRenderer's sprite to a custom one if a custom one is available.
+/// </summary>
 [DefaultExecutionOrder(2)] // because of flow worms
 internal class CustomSpriteSwapper : MonoBehaviour
 {

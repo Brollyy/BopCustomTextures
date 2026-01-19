@@ -11,6 +11,9 @@ using System.Diagnostics;
 
 namespace BopCustomTextures;
 
+/// <summary>
+/// Plugin class. Executes all harmony patches and other hooks, and otherwise uses Customs/CustomManager to realize functionality.
+/// </summary>
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 public class BopCustomTexturesPlugin : BaseUnityPlugin
 {
@@ -33,6 +36,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
         Logger = base.Logger;
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
+        // Config loading
         saveCustomFiles = Config.Bind("Editor",
             "SaveCustomFiles",
             true,
@@ -68,18 +72,21 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             logUnloading.Value,
             logSeperateTextureSprites.Value,
             logAtlasTextureSprites.Value
-            );
+        );
         Manager = new CustomManager(customlogger, GetTempPath());
 
         Harmony.PatchAll();
 
+        // Apply hooks to make sure temp files are deleted on program exit
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
+        // If previous program exit didn't properly clean up temp files, clean them up now
         CustomFileManager.CleanUpTempDirectories(GetTempParentPath());
 
         if (logSceneIndices.Value != LogLevel.None)
         {
+            // Apply hook to log scene loading if enabled in config
             SceneManager.sceneLoaded += delegate (Scene scene, LoadSceneMode mode)
             {
                 Logger.Log(logSceneIndices.Value, $"{scene.buildIndex} - {scene.name}");

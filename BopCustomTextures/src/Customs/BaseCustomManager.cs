@@ -5,6 +5,11 @@ using System.Collections.Generic;
 using ILogger = BopCustomTextures.Logging.ILogger;
 
 namespace BopCustomTextures.Customs;
+
+/// <summary>
+/// Base class for all custom asset managers.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
 public class BaseCustomManager(ILogger logger)
 {
     public ILogger logger = logger;

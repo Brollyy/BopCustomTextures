@@ -4,6 +4,11 @@ using System.IO;
 
 namespace BopCustomTextures.Customs;
 
+/// <summary>
+/// Manages source files in custom mixtapes, including routines to load them and save them in future mixtapes.
+/// </summary>
+/// <param name="logger">Plugin-specific logger</param>
+/// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
 public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomManager(logger)
 {
     public string tempPath = tempPath;
@@ -72,6 +77,7 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
         {
             try
             {
+                // check temp directory isn't being used by other Bits & Bops instance.
                 LockFileLocked(Path.Combine(otherTempPath, ".tmp"));
                 Directory.Delete(otherTempPath, true);
             }
@@ -81,6 +87,7 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
 
     public static void LockFileLocked(string path)
     {
+        // attempt to create a file to see if a temp directory is being used by another Bits & Bops instance. 
         using var _ = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
 
