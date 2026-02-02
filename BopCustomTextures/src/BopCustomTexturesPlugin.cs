@@ -17,6 +17,10 @@ namespace BopCustomTextures;
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 public class BopCustomTexturesPlugin : BaseUnityPlugin
 {
+    // lowest version string saved mixtapes will support
+    public static readonly string LowestVersion = "0.1.0";
+    // lowest release number saved mixtapes will support
+    public static readonly uint LowestRelease = 1;
 
     public static new ManualLogSource Logger;
     public static CustomManager Manager;
@@ -68,12 +72,19 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             "Log level for vanilla scene loading, including scene name + build index (for locating level and sharedassets files)");
 
         var customlogger = new ManualLogSourceCustom(Logger,
+            MyPluginInfo.PLUGIN_NAME,
             logFileLoading.Value,
             logUnloading.Value,
             logSeperateTextureSprites.Value,
             logAtlasTextureSprites.Value
         );
-        Manager = new CustomManager(customlogger, GetTempPath());
+        Manager = new CustomManager(customlogger, 
+            MyPluginInfo.PLUGIN_GUID, 
+            MyPluginInfo.PLUGIN_VERSION, 
+            LowestRelease, 
+            LowestVersion, 
+            GetTempPath()
+        );
 
         Harmony.PatchAll();
 

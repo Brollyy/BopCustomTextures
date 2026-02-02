@@ -1,4 +1,6 @@
 ﻿using BopCustomTextures.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 
@@ -8,12 +10,25 @@ namespace BopCustomTextures.Customs;
 /// Manages all custom assets using specific manager classes.
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
+/// <param name="pluginGUID">GUID of plugin. plugin-specific data in mixtape files will be saved at "{pluginGUID}.json"</param>
+/// <param name="pluginVersion">Current version of plugin. Only used in logging</param>
+/// <param name="lowestRelease">Lowest release number saved mixtapes with customs will support</param>
+/// <param name="lowestVersion">Lowest version string saved mixtapes with customs will support</param>
 /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
-public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(logger)
+public class CustomManager(ILogger logger, string pluginGUID, string pluginVersion, uint lowestRelease, string lowestVersion, string tempPath) : BaseCustomManager(logger)
 {
-    public DateTime lastModified;
+    public readonly string pluginGUID = pluginGUID;
+    public readonly string latestVersion = pluginVersion;
+    public readonly uint lowestRelease = lowestRelease;
+    public readonly string lowestVersion = lowestVersion;
+
+    public string version;
+    public uint release;
+
     public string lastPath;
+    public DateTime lastModified;
     public bool readNecessary = true;
+
     public CustomSceneManager sceneManager = new CustomSceneManager(logger);
     public CustomTextureManager textureManager = new CustomTextureManager(logger);
     public CustomFileManager fileManager = new CustomFileManager(logger, tempPath);
@@ -24,6 +39,13 @@ public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(
         {
             return;
         }
+
+        bool needsVersion = GetMixtapeVersion(path);
+        if (release > lowestRelease)
+        {
+            logger.LogEditorError($"Mixtape requires {pluginGUID} v{version}+, but you are on v{latestVersion}. You may have to update {pluginGUID} to play properly.");
+        }
+
         int filesLoaded = 0;
         var subpaths = Directory.EnumerateDirectories(path);
         foreach (var subpath in subpaths)
@@ -47,16 +69,23 @@ public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(
         if (filesLoaded > 0)
         {
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
+            if (needsVersion)
+            {
+                logger.LogEditorWarning("This file with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
+                    "Save this mixtape in the editor to add a \"BopCustomTextures.json\" file automatically!"
+                    );
+            }
         }
         else
         {
-            logger.LogInfo($"No custom assets found");
+            logger.LogInfo("No custom assets found");
         }
     }
 
     public void WriteDirectory(string path)
     {
         fileManager.WriteDirectory(path);
+        WriteMixtapeVersion(path);
     }
 
     public void ResetAll()
@@ -98,5 +127,88 @@ public class CustomManager(ILogger logger, string tempPath) : BaseCustomManager(
         }
         sceneManager.InitCustomScene(__instance, sceneKey);
         textureManager.InitCustomTextures(__instance, sceneKey);
+    }
+
+    public bool GetMixtapeVersion(string path)
+    {
+        string filePath = Path.Combine(path, $"{pluginGUID}.json");
+        if (!File.Exists(filePath))
+        {
+            version = lowestVersion;
+            release = lowestRelease;
+            return true;
+        }
+
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(filePath);
+            MemoryStream memStream = new MemoryStream(bytes);
+            using StreamReader reader = new StreamReader(memStream);
+            using JsonTextReader jsonReader = new JsonTextReader(reader);
+            var jobj = JObject.Load(jsonReader);
+
+            if (jobj.TryGetValue("release", out var jrelease))
+            {
+                if (jrelease.Type == JTokenType.Integer)
+                {
+                    release = (uint)jrelease;
+                } 
+                else
+                {
+                    logger.LogWarning($"Release is a {jrelease.Type} when it should be an int, will treat as latest.");
+                    release = lowestRelease;
+                }
+            } 
+            else
+            {
+                logger.LogWarning("Version data missing release, will treat as latest.");
+                release = lowestRelease;
+            }
+            if (jobj.TryGetValue("version", out var jversion))
+            {
+                if (jversion.Type == JTokenType.String)
+                {
+                    version = (string)jversion;
+                }
+                else
+                {
+                    logger.LogWarning($"Version is a {jversion.Type} when it should be an int, will treat as latest.");
+                    version = lowestVersion;
+                }
+            }
+            else
+            {
+                logger.LogWarning("Version data missing version, will treat as latest.");
+                version = lowestVersion;
+            }
+
+        }
+        catch (JsonReaderException e)
+        {
+            logger.LogError($"Error reading verison data, will treat as latest: {e}");
+            version = lowestVersion;
+            release = lowestRelease;
+        }
+        
+        return false;
+    }
+
+    public void WriteMixtapeVersion(string path)
+    {
+        var jobj = new JObject();
+        jobj["version"] = new JValue(version);
+        jobj["release"] = new JValue(release);
+
+        try
+        {
+            using (StreamWriter outputFile = new StreamWriter(Path.Combine(path, $"{pluginGUID}.json")))
+            {
+                outputFile.Write(JsonConvert.SerializeObject(jobj));
+            }
+        } 
+        catch (Exception e)
+        {
+            logger.LogError($"Error writing version data: {e}");
+        }
     }
 }

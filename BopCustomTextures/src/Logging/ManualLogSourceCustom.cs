@@ -1,4 +1,8 @@
 using BepInEx.Logging;
+using System.Linq;
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace BopCustomTextures.Logging;
 
@@ -6,17 +10,19 @@ namespace BopCustomTextures.Logging;
 /// Wrapper class for BepInEx's ManualLogSource with special methods for log messages with configurable log levels.
 /// </summary>
 /// <param name="logger">Internal BepInEx ManualLogSource</param>
+/// <param name="pluginName">Plugin name to display when using LogEditor</param>
 /// <param name="logFileLoading">Log level for file loading messages</param>
 /// <param name="logUnloading">Log level for asset unloading messages</param>
 /// <param name="logSeperateTextureSprites">Log level for sprite creation from seperate textures</param>
 /// <param name="logAtlasTextureSprites">Log level for sprite creation from atlas textures</param>
-public class ManualLogSourceCustom(ManualLogSource logger, LogLevel logFileLoading, LogLevel logUnloading, LogLevel logSeperateTextureSprites, LogLevel logAtlasTextureSprites) : ILogger
+public class ManualLogSourceCustom(ManualLogSource logger, string pluginName, LogLevel logFileLoading, LogLevel logUnloading, LogLevel logSeperateTextureSprites, LogLevel logAtlasTextureSprites) : ILogger
 {
-    private ManualLogSource logger = logger;
-    private LogLevel logFileLoading = logFileLoading;
-    private LogLevel logUnloading = logUnloading;
-    private LogLevel logSeperateTextureSprites = logSeperateTextureSprites;
-    private LogLevel logAtlasTextureSprites = logAtlasTextureSprites;
+    private readonly ManualLogSource logger = logger;
+    private readonly string pluginName = pluginName;
+    private readonly LogLevel logFileLoading = logFileLoading;
+    private readonly LogLevel logUnloading = logUnloading;
+    private readonly LogLevel logSeperateTextureSprites = logSeperateTextureSprites;
+    private readonly LogLevel logAtlasTextureSprites = logAtlasTextureSprites;
 
     public void LogFileLoading(object data)
     {
@@ -34,6 +40,34 @@ public class ManualLogSourceCustom(ManualLogSource logger, LogLevel logFileLoadi
     {
         logger.Log(logAtlasTextureSprites, data);
     }
+
+    public void LogEditor(LogLevel level, object data)
+    {
+        logger.Log(level, data);
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.name != "MixtapeEditor")
+        {
+            return;
+        }
+        
+        var objs = scene.GetRootGameObjects();
+        var obj = objs.FirstOrDefault(obj => obj.name == "ErrorCanvas");
+        if (obj == null)
+        {
+            return;
+        }
+        obj.SetActive(true);
+        obj.GetComponentInChildren<TMP_Text>().text = $"[{pluginName}] {data}";
+    }
+    public void LogEditorError(object data)
+    {
+        LogEditor(LogLevel.Error, data);
+    }
+    public void LogEditorWarning(object data)
+    {
+        LogEditor(LogLevel.Warning, data);
+    }
+
 
     public void Log(LogLevel level, object data)
     {

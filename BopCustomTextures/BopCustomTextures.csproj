@@ -4,7 +4,7 @@
 		<TargetFramework>net472</TargetFramework>
 		<AssemblyName>BopCustomTextures</AssemblyName>
 		<Product>CustomTex</Product>
-		<Version>0.1.0</Version>
+		<Version>0.1.1</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<LangVersion>latest</LangVersion>
 		<RestoreAdditionalProjectSources>
@@ -22,7 +22,7 @@
 		<PackageReference Include="BepInEx.Core" Version="5.*" />
 		<PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
 		<PackageReference Include="UnityEngine.Modules" Version="2021.3.45" IncludeAssets="compile" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
@@ -33,6 +33,9 @@
 		<Reference Include="Assembly-CSharp">
 			<HintPath>.\lib\Assembly-CSharp.dll</HintPath>
 		</Reference>
+		<Reference Include="Unity.TextMeshPro">
+			<HintPath>.\lib\Unity.TextMeshPro.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -40,6 +43,6 @@
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="$(PostBuildCopyDestination) != ''">
-	  <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PostBuildCopyDestination)" />
+		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PostBuildCopyDestination)" />
 	</Target>
 </Project>

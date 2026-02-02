@@ -9,6 +9,10 @@ public interface ILogger
     public void LogUnloading(object data);
     public void LogSeperateTextureSprites(object data);
     public void LogAtlasTextureSprites(object data);
+
+    public void LogEditorError(object data);
+    public void LogEditorWarning(object data);
+
     public void LogFatal(object data);
     public void LogError(object data);
     public void LogWarning(object data);

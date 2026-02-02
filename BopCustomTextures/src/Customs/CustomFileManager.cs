@@ -1,5 +1,4 @@
 ﻿using BopCustomTextures.Logging;
-using UnityEngine.SceneManagement;
 using System.IO;
 
 namespace BopCustomTextures.Customs;
