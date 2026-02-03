@@ -92,9 +92,7 @@ public class CustomSceneManager(ILogger logger) : BaseCustomManager(logger)
         logger.LogInfo($"Applying custom scene: {sceneKey}");
         GameObject rootObj = rootObjectsRef(__instance)[sceneKey];
         JObject jall = CustomScenes[sceneKey];
-        foreach (KeyValuePair<string, JToken> dict in jall)
-        {
-            jsonInitializer.InitCustomGameObject(dict.Value, dict.Key, rootObj);
-        }
+
+        jsonInitializer.InitCustomGameObject(jall, rootObj);
     }
 }

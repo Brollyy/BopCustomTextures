@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using Color = UnityEngine.Color;
 using ILogger = BopCustomTextures.Logging.ILogger;
+using System.Text.RegularExpressions;
 
 namespace BopCustomTextures.Customs;
 
@@ -12,42 +13,43 @@ namespace BopCustomTextures.Customs;
 /// <param name="logger">Plugin-specific logger</param>
 public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
 {
-    public void InitCustomGameObject(JToken jobj, string path, GameObject rootObj)
+    public void InitCustomGameObject(JObject jobj, GameObject obj)
     {
-        if (jobj.GetType() != typeof(JObject))
-        {
-            logger.LogWarning($"JSON GameObject\"{path}\" is a {jobj.GetType()} when it should be a JObject");
-            return;
-        }
-        var jgameObj = (JObject)jobj;
-        GameObject obj = FindGameObjectInChildren(rootObj, path);
-        if (obj == null)
-        {
-            logger.LogWarning($"JSON GameObject\"{path}\" does not correspond to a gameObject in the scene");
-            return;
-        }
-        foreach (KeyValuePair<string, JToken> dict in jgameObj)
+        foreach (KeyValuePair<string, JToken> dict in jobj)
         {
             if (dict.Key.StartsWith("!"))
             {
-                InitCustomComponent(dict.Value, dict.Key.Substring(1), obj);
+                if (dict.Value.Type != JTokenType.Object)
+                {
+                    logger.LogWarning($"JSON Componnent \"{dict.Key}\" is a {dict.Value.Type} when it should be a JObject");
+                    return;
+                }
+                InitCustomComponent((JObject)dict.Value, dict.Key.Substring(1), obj);
             }
             else
             {
-                InitCustomGameObject(dict.Value, dict.Key, obj);
+                if (dict.Value.Type != JTokenType.Object)
+                {
+                    logger.LogWarning($"JSON GameObject \"{dict.Key}\" is a {dict.Value.Type} when it should be a Object");
+                    return;
+                }
+                bool matched = false;
+                var jchildObj = (JObject)dict.Value;
+                foreach (var childObj in FindGameObjectsInChildren(obj, dict.Key))
+                {
+                    matched = true;
+                    InitCustomGameObject(jchildObj, childObj);
+                }
+                if (!matched)
+                {
+                    logger.LogWarning($"JSON GameObject \"{dict.Key}\" didn't correspond to any existent GameObjects");
+                }
             }
         }
     }
 
-    public void InitCustomComponent(JToken jobj, string name, GameObject obj)
+    public void InitCustomComponent(JObject jcomponent, string name, GameObject obj)
     {
-        if (jobj.GetType() != typeof(JObject))
-        {
-            logger.LogWarning($"JSON Componnent\"{name}\" is a {jobj.GetType()} when it should be a JObject");
-            return;
-        }
-        JObject jcomponent = (JObject)jobj;
-
         switch (name)
         {
             case "Transform":
@@ -228,27 +230,37 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
 
 
     // UTILITY // 
-    public static GameObject FindGameObjectInChildren(GameObject obj, string path)
+
+    public static IEnumerable<GameObject> FindGameObjectsInChildren(GameObject obj, string path)
     {
-        string[] names = path.Split('/');
-        for (var i = 0; i < names.Length; i++)
+        string[] names = Regex.Split(path, @"[\\/]");
+        return FindGameObjectsInChildren(obj, names);
+    }
+
+    public static IEnumerable<GameObject> FindGameObjectsInChildren(GameObject rootObj, string[] names, int i = 0)
+    {
+        for (var j = 0; j < rootObj.transform.childCount; j++)
         {
-            bool success = false;
-            for (var j = 0; j < obj.transform.childCount; j++)
+            var obj = rootObj.transform.GetChild(j).gameObject;
+            if (Regex.IsMatch(obj.name, WildCardToRegex(names[i])))
             {
-                var newObj = obj.transform.GetChild(j).gameObject;
-                if (newObj.name == names[i])
+                if (i == names.Length - 1)
                 {
-                    obj = newObj;
-                    success = true;
-                    break;
+                    yield return obj;
+                }
+                else
+                {
+                    foreach (var childObj in FindGameObjectsInChildren(obj, names, i + 1))
+                    {
+                        yield return childObj;
+                    }
                 }
             }
-            if (!success)
-            {
-                return null;
-            }
         }
-        return obj;
+    }
+
+    private static string WildCardToRegex(string value)
+    {
+        return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
     }
 }
