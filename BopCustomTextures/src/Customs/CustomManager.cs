@@ -24,6 +24,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
 
     public string version;
     public uint release;
+    public bool hasCustomAssets = false;
 
     public string lastPath;
     public DateTime lastModified;
@@ -40,7 +41,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
             return;
         }
 
-        bool needsVersion = GetMixtapeVersion(path);
+        hasCustomAssets = GetMixtapeVersion(path);
         if (release > lowestRelease)
         {
             logger.LogEditorError($"Mixtape requires {pluginGUID} v{version}+, but you are on v{latestVersion}. You may have to update {pluginGUID} to play properly.");
@@ -69,11 +70,12 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
         if (filesLoaded > 0)
         {
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
-            if (needsVersion)
+            if (!hasCustomAssets)
             {
                 logger.LogEditorWarning("This file with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
                     "Save this mixtape in the editor to add a \"BopCustomTextures.json\" file automatically!"
                     );
+                hasCustomAssets = true;
             }
         }
         else
@@ -84,8 +86,12 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
 
     public void WriteDirectory(string path)
     {
-        fileManager.WriteDirectory(path);
-        WriteMixtapeVersion(path);
+        if (hasCustomAssets)
+        {
+            logger.LogInfo("Saving with custom files");
+            fileManager.WriteDirectory(path);
+            WriteMixtapeVersion(path);
+        };
     }
 
     public void ResetAll()
@@ -95,6 +101,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
         fileManager.DeleteTempDirectory();
         lastPath = null;
         lastModified = default;
+        hasCustomAssets = false;
         readNecessary = true;
     }
 
@@ -136,7 +143,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
         {
             version = lowestVersion;
             release = lowestRelease;
-            return true;
+            return false;
         }
 
         try
@@ -190,7 +197,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
             release = lowestRelease;
         }
         
-        return false;
+        return true;
     }
 
     public void WriteMixtapeVersion(string path)

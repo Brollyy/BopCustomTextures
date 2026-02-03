@@ -13,12 +13,10 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
     public string tempPath = tempPath;
     public static FileStream tempLock = null;
 
-    public void WriteDirectory(string path)
+    public bool WriteDirectory(string path)
     {
         if (tempLock != null)
         {
-            logger.LogInfo("Saving with custom files");
-
             var subpaths = Directory.EnumerateDirectories(tempPath);
             foreach (var subpath in subpaths)
             {
@@ -29,7 +27,9 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
                     CopyDirectory(subpath, Path.Combine(path, subpath.Substring(tempPath.Length + 1)));
                 }
             }
+            return true;
         }
+        return false;
     }
 
     public void CopyDirectory(string path, string dest)
