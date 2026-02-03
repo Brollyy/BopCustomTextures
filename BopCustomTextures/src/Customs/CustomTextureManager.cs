@@ -127,13 +127,13 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
     {
         byte[] bytes = File.ReadAllBytes(path);
         Texture2D tex = new Texture2D(2, 2);
-        bool success = tex.LoadImage(bytes);
-        if (!success)
+        if (!tex.LoadImage(bytes))
         {
             logger.LogWarning($"Couldn't load custom texture: {localPath} (is it a PNG/JPG?)");
             Object.Destroy(tex);
             return null;
         }
+        tex.wrapMode = TextureWrapMode.Clamp;
         tex.name = filename;
         return tex;
     }
