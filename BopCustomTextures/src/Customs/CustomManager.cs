@@ -54,7 +54,7 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
             var backup2 = false;
             if (CustomSceneManager.IsCustomSceneDirectory(subpath))
             {
-                filesLoaded += sceneManager.LocateCustomScenes(subpath, path);
+                filesLoaded += sceneManager.LocateCustomScenes(subpath, path, release);
                 backup2 = backup;
             }
             else if (CustomTextureManager.IsCustomTextureDirectory(subpath))
@@ -128,12 +128,16 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
 
     public void InitScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
     {
-        if (cancelLoadRef(__instance))
-        {
-            return;
-        }
         sceneManager.InitCustomScene(__instance, sceneKey);
         textureManager.InitCustomTextures(__instance, sceneKey);
+    }
+
+    public void InitScenes(MixtapeLoaderCustom __instance)
+    {
+        foreach (var dict in rootObjectsRef(__instance))
+        {
+            InitScene(__instance, dict.Key);
+        }
     }
 
     public bool GetMixtapeVersion(string path)

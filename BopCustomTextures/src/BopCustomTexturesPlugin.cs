@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Collections;
 
 namespace BopCustomTextures;
 
@@ -18,9 +19,9 @@ namespace BopCustomTextures;
 public class BopCustomTexturesPlugin : BaseUnityPlugin
 {
     // lowest version string saved mixtapes will support
-    public static readonly string LowestVersion = "0.1.0";
+    public static readonly string LowestVersion = "0.2.0";
     // lowest release number saved mixtapes will support
-    public static readonly uint LowestRelease = 1;
+    public static readonly uint LowestRelease = 2;
 
     public static new ManualLogSource Logger;
     public static CustomManager Manager;
@@ -159,14 +160,22 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
         }
     }
 
-    [HarmonyPatch(typeof(MixtapeLoaderCustom), "InitScene")]
-    private static class MixtapeLoaderCustomGetOrLoadScenePatch
+    [HarmonyPatch(typeof(MixtapeLoaderCustom), "Start")]
+    private static class MixtapeLoaderCustomStartPatch
     {
-        static void Postfix(MixtapeLoaderCustom __instance, SceneKey sceneKey)
+        static void Prefix(MixtapeLoaderCustom __instance, out MixtapeLoaderCustom __state)
         {
-            Manager.InitScene(__instance, sceneKey);
+            __state = __instance;
+        }
+        static IEnumerator Postfix(IEnumerator __result, MixtapeLoaderCustom __state)
+        {
+            while (__result.MoveNext())
+                yield return __result.Current;
+
+            Manager.InitScenes(__state);
         }
     }
+
 
     private void OnProcessExit(object sender, EventArgs e)
     {
