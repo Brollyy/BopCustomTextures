@@ -3,6 +3,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using ILogger = BopCustomTextures.Logging.ILogger;
+using System.Text.RegularExpressions;
 
 namespace BopCustomTextures.Customs;
 
@@ -22,6 +23,8 @@ public class BaseCustomManager(ILogger logger)
 
     public static readonly AccessTools.FieldRef<MixtapeLoaderCustom, Entity[]> entitiesRef =
         AccessTools.FieldRefAccess<MixtapeLoaderCustom, Entity[]>("entities");
+
+    private static readonly Regex SceneKeyRegex = new Regex("^(.*?)(?:Custom|Mixtape)?$");
 
     protected static SceneKey ToSceneKeyOrInvalid(string name)
     {
@@ -45,5 +48,19 @@ public class BaseCustomManager(ILogger logger)
             }
         }
         return SceneKey.Invalid;
+    }
+
+    protected static string FromSceneKeyOrInvalid(SceneKey scene)
+    {
+        var sceneStr = scene.ToString();
+        var match = SceneKeyRegex.Match(sceneStr);
+        if (match.Success)
+        {
+            return match.Groups[1].Value;
+        } 
+        else
+        {
+            return sceneStr;
+        }
     }
 }

@@ -122,22 +122,13 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
 
     public void InitCustomScene(MixtapeLoaderCustom __instance, SceneKey sceneKey, string key = "")
     {
-        if (!CustomScenes.ContainsKey(sceneKey))
+        if (!CustomScenes.ContainsKey(sceneKey) ||
+            !rootObjectsRef(__instance).TryGetValue(sceneKey, out var rootObj) ||
+            !CustomScenes[sceneKey].TryGetValue(key, out var jall))
         {
             return;
         }
         logger.LogInfo($"Applying custom scene: {sceneKey}");
-        if (!rootObjectsRef(__instance).TryGetValue(sceneKey, out var rootObj))
-        {
-            logger.LogError($"Cannot apply scene mod to missing scene {sceneKey}");
-            return;
-        }
-        if (!CustomScenes[sceneKey].TryGetValue(key, out var jall))
-        {
-            logger.LogError($"{sceneKey} does not have a scene mod of the key \"{key}\"");
-            return;
-        }
-
         jsonInitializer.InitCustomGameObject(jall, rootObj);
     }
 
@@ -171,9 +162,8 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
         }
         else
         {
-            // TODO: "Custom" and "Mixtape" is being added to the end, which wouldn't be very space efficient in the long run
             sceneModTemplate.properties["scene"] = new MixtapeEventTemplates.ChoiceField<string>(
-                CustomScenes.Keys.Select(t => t.ToString()).ToArray());
+                CustomScenes.Keys.Select(FromSceneKeyOrInvalid).ToArray());
         }
     }
 }

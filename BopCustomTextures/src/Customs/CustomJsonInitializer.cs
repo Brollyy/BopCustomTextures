@@ -22,19 +22,30 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         {
             if (dict.Key.StartsWith("!"))
             {
-                if (dict.Value.Type != JTokenType.Object)
+                if (dict.Key == "!Active")
                 {
-                    logger.LogWarning($"JSON Componnent \"{dict.Key}\" is a {dict.Value.Type} when it should be a Object");
-                    return;
+                    if (dict.Value.Type != JTokenType.Boolean) {
+                        logger.LogWarning($"JSON Active \"{dict.Key}\" is a {dict.Value.Type} when it should be a Boolean");
+                        continue;
+                    }
+                    obj.SetActive((bool)dict.Value);
+                } 
+                else
+                {
+                    if (dict.Value.Type != JTokenType.Object)
+                    {
+                        logger.LogWarning($"JSON Componnent \"{dict.Key}\" is a {dict.Value.Type} when it should be a Object");
+                        continue;
+                    }
+                    InitCustomComponent((JObject)dict.Value, dict.Key.Substring(1), obj);
                 }
-                InitCustomComponent((JObject)dict.Value, dict.Key.Substring(1), obj);
             }
             else
             {
                 if (dict.Value.Type != JTokenType.Object)
                 {
                     logger.LogWarning($"JSON GameObject \"{dict.Key}\" is a {dict.Value.Type} when it should be a Object");
-                    return;
+                    continue;
                 }
                 bool matched = false;
                 var jchildObj = (JObject)dict.Value;
@@ -77,6 +88,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         JObject jobj;
         if (TryGetJObject(jtransform, "LocalPosition", out jobj)) transform.localPosition = InitCustomVector3(jobj, transform.localPosition);
         if (TryGetJObject(jtransform, "LocalRotation", out jobj)) transform.localRotation = InitCustomQuaternion(jobj, transform.localRotation);
+        else if (TryGetJObject(jtransform, "LocalEulerAngles", out jobj)) transform.localEulerAngles = InitCustomVector3(jobj, transform.localEulerAngles);
         if (TryGetJObject(jtransform, "LocalScale", out jobj)) transform.localScale = InitCustomVector3(jobj, transform.localScale);
     }
     public void InitCustomSpriteRenderer(JObject jspriteRenderer, GameObject obj)
