@@ -15,7 +15,7 @@ namespace BopCustomTextures.Customs;
 /// Manages custom textures, including loading them from source files and applying them when the mixtape is played.
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
-public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtapeEventTemplates) : BaseCustomManager(logger)
+public class CustomTextureManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate[] mixtapeEventTemplates) : BaseCustomManager(logger)
 {
     public MixtapeEventTemplate[] mixtapeEventTemplates = mixtapeEventTemplates;
     public readonly Dictionary<SceneKey, Dictionary<int, Dictionary<int, Texture2D>>> AtlasTextures = [];
@@ -25,8 +25,8 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
     public readonly Dictionary<Texture2D, Dictionary<string, Dictionary<int, Sprite>>> SpriteMaps = [];
     public readonly HashSet<Sprite> CustomSprites = [];
     public readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
-    public readonly Dictionary<SceneKey, Dictionary<string, int>> VariantMaps = [];
     public readonly Dictionary<SceneKey, List<int>> Variants = [];
+    public CustomVariantNameManager VariantManager = variantManager;
     public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[^\w\\/]*(\w+)?[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
@@ -67,7 +67,7 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
             SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
             if (scene != SceneKey.Invalid)
             {
-                int variant = GetVariant(scene, match.Groups[2].Value);
+                int variant = VariantManager.GetOrAddVariant(scene, match.Groups[2].Value);
                 string filename = match.Groups[3].Value;
                 Match match2 = FileRegexAtlas.Match(filename);
                 if (match2.Success)
@@ -203,7 +203,6 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
         SeperateTextures.Clear();
         SeperateTexturesNotInited.Clear();
         TextureMaps.Clear();
-        VariantMaps.Clear();
     }
 
     public void InitCustomTextures(MixtapeLoaderCustom __instance, SceneKey sceneKey)
@@ -232,7 +231,8 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
             CustomSpriteSwapper script = spriteRenderer.gameObject.AddComponent<CustomSpriteSwapper>();
             script.LastVanilla = spriteRenderer.sprite;
             spriteRenderer.sprite = ReplaceCustomSprite(script.LastVanilla);
-            script.Last = spriteRenderer.sprite; // doing this in Awake() is insufficient
+            script.Last = spriteRenderer.sprite; // doing anything in Awake() is insufficient
+            script.SpriteRenderer = spriteRenderer;
             script.TextureManager = this;
         }
     }
@@ -251,14 +251,14 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
             {
                 continue;
             }
-            byte removing = 0;
+            byte operation = 0;
             if (match.Groups[2].Value == "remove")
             {
-                removing = 1;
+                operation = 1;
             }
             else if (match.Groups[2].Value == "set")
             {
-                removing = 2;
+                operation = 2;
             }
             else if (match.Groups[2].Value != "add")
             {
@@ -279,40 +279,29 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
                     logger.LogError($"Cannot apply texture variant to missing scene {scene}");
                     continue;
                 }
-                spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(false);
+                spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(true);
                 sceneSpriteSwappers[scene] = spriteSwappers;
-            }
-            if (!VariantMaps.TryGetValue(scene, out var variantMap))
-            {
-                logger.LogError($"Cannot use variants for vanilla scene {scene}");
-                continue;
             }
 
             var variantStrings = entity.GetString("variant").Split([',']);
             var variants = new List<int>();
-            foreach (var str in variantStrings)
+            foreach (var strWhitespace in variantStrings)
             {
-                var str2 = str.Trim();
-                int variant;
-                if (string.IsNullOrEmpty(str2))
+                var str = strWhitespace.Trim();
+                if (!VariantManager.TryGetVariant(scene, str, out int variant))
                 {
-                    variant = 0;
-                }
-                else if (!variantMap.TryGetValue(str2, out variant))
-                {
-                    logger.LogError($"Cannot find variant \"{str2}\" for scene {scene}");
                     continue;
                 }
                 if (variants.Contains(variant))
                 {
-                    logger.LogWarning($"Variant \"{str2}\" for scene {scene} is listed multiple times");
+                    logger.LogWarning($"Variant \"{str}\" for scene {scene} is listed multiple times");
                     continue;
                 }
                 variants.Add(variant);
             }
             var destVariants = Variants[scene];
 
-            switch (removing)
+            switch (operation)
             {
                 case 0:
                     __instance.scheduler.Schedule(entity.beat, delegate
@@ -341,10 +330,10 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
                         }
                     });
                     break;
-                case 2: // ermmmm this one didnt work
+                case 2: 
                     __instance.scheduler.Schedule(entity.beat, delegate
                     {
-                        destVariants = variants;
+                        Variants[scene] = variants;
                         foreach (var spriteSwapper in spriteSwappers)
                         {
                             spriteSwapper.ReplaceCustomSprites();
@@ -358,7 +347,7 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
     {
         var hasCustomTextures = AtlasTextures.Keys.ToHashSet().Union(SeperateTextures.Keys.ToHashSet());
         object scenes;
-        if (hasCustomTextures.Count() < 0)
+        if (hasCustomTextures.Count() < 1)
         {
             scenes = "";
         }
@@ -652,27 +641,8 @@ public class CustomTextureManager(ILogger logger, MixtapeEventTemplate[] mixtape
         }
         return TextureMaps[sprite.texture];
     }
-    
-    public int GetVariant(SceneKey scene, string name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return 0;
-        }
-        int value;
-        if (!VariantMaps.TryGetValue(scene, out var variantMap))
-        {
-            variantMap = [];
-            VariantMaps[scene] = variantMap;
-        }
-        else if (variantMap.TryGetValue(name, out value))
-        {
-            return value;
-        }
-        value = variantMap.Count + 1;
-        variantMap[name] = value;
-        return value;
-    }
+
+
 
     public static Rect GetBoundingBox(Vector2[] vertices)
     {

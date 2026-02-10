@@ -12,12 +12,13 @@ namespace BopCustomTextures.Customs;
 /// Class of methods used to apply scene mods.
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
-public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
+public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager variantManager) : BaseCustomManager(logger)
 {
-    private readonly Dictionary<string, Material> materials = [];
-    private readonly Dictionary<string, Material> shaderMaterials = [];
+    private readonly Dictionary<string, Material> Materials = [];
+    private readonly Dictionary<string, Material> ShaderMaterials = [];
+    private CustomVariantNameManager VariantManager = variantManager;
 
-    public MGameObject InitCustomGameObject(JObject jobj, string name = "", bool isVolatile = false)
+    public MGameObject InitGameObject(JObject jobj, SceneKey scene, string name = "", bool isVolatile = false)
     {
         var mobj = new MGameObject(name);
         var components = new List<MComponent>();
@@ -42,7 +43,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
                         logger.LogWarning($"JSON Componnent \"{dict.Key}\" is a {dict.Value.Type} when it should be a Object");
                         continue;
                     }
-                    var mcomponent = InitCustomComponent((JObject)dict.Value, dict.Key.Substring(1));
+                    var mcomponent = InitComponent((JObject)dict.Value, scene, dict.Key.Substring(1));
                     if (mcomponent != null)
                     {
                         components.Add(mcomponent);
@@ -64,7 +65,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
                     childName = childName.Substring(1);
                 }
 
-                var mchildObj = InitCustomGameObject((JObject)dict.Value, childName, isChildVolatile);
+                var mchildObj = InitGameObject((JObject)dict.Value, scene, childName, isChildVolatile);
                 if (isChildVolatile)
                 {
                     childObjsVolatile.Add(mchildObj);
@@ -81,16 +82,18 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         return mobj;
     }
 
-    public MComponent InitCustomComponent(JObject jcomponent, string name)
+    public MComponent InitComponent(JObject jcomponent, SceneKey scene, string name)
     {
         switch (name)
         {
             case "Transform":
-                return InitCustomTransform(jcomponent);
+                return InitTransform(jcomponent);
             case "SpriteRenderer":
-                return InitCustomSpriteRenderer(jcomponent);
+                return InitSpriteRenderer(jcomponent);
             case "ParallaxObjectScript":
-                return InitCustomParallaxObjectScript(jcomponent);
+                return InitParallaxObjectScript(jcomponent);
+            case "CustomSpriteSwapper":
+                return InitCustomSpriteSwapper(jcomponent, scene);
             default:
                 logger.LogWarning($"JSON Componnent \"{name}\" is an unknown/unsupported component");
                 return null;
@@ -98,7 +101,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
     }
 
     // UNITY COMPONENTS //
-    public MTransform InitCustomTransform(JObject jtransform)
+    public MTransform InitTransform(JObject jtransform)
     {
         var mtransform = new MTransform();
         if (TryGetJVector3(jtransform, "LocalPosition", out var vector3)) mtransform.localPosition = vector3;
@@ -109,7 +112,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         return mtransform;
     }
 
-    public MSpriteRenderer InitCustomSpriteRenderer(JObject jspriteRenderer)
+    public MSpriteRenderer InitSpriteRenderer(JObject jspriteRenderer)
     {
         var mspriteRenderer = new MSpriteRenderer();
         if (TryGetJColor(jspriteRenderer, "Color", out var color)) mspriteRenderer.color = color;
@@ -125,13 +128,82 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
     }
 
     // BITS & BOPS SCRIPTS //
-    public MParallaxObjectScript InitCustomParallaxObjectScript(JObject jparallaxObjectScript)
+    public MParallaxObjectScript InitParallaxObjectScript(JObject jparallaxObjectScript)
     {
         var mparallaxObjectScript = new MParallaxObjectScript();
         JValue jval;
         if (TryGetJValue(jparallaxObjectScript, "ParallaxScale", JTokenType.Float, out jval)) mparallaxObjectScript.parallaxScale = (float)jval;
         if (TryGetJValue(jparallaxObjectScript, "LoopDistance", JTokenType.Float, out jval)) mparallaxObjectScript.loopDistance = (float)jval;
         return mparallaxObjectScript;
+    }
+
+    // THERE I AM GARY, THERE I AM! //
+
+    public MCustomSpriteSwapper InitCustomSpriteSwapper(JObject jcustomSpriteSwapper, SceneKey scene)
+    {
+        var mcustomSpriteSwapper = new MCustomSpriteSwapper();
+        if (jcustomSpriteSwapper.TryGetValue("Variants", out var jvariants))
+        {
+            switch (jvariants.Type)
+            {
+                case JTokenType.Array:
+                    mcustomSpriteSwapper.variants = [];
+                    foreach (var jel in (JArray)jvariants)
+                    {
+                        if (TryGetVariant(jel, scene, out var variant))
+                        {
+                            mcustomSpriteSwapper.variants.Add(variant);
+                        }
+                    }
+                    break;
+                case JTokenType.Object:
+                    mcustomSpriteSwapper.variantsIndexed = [];
+                    var jobj = (JObject)jvariants;
+                    foreach (var pair in jobj)
+                    {
+                        if (!int.TryParse(pair.Key, out var index))
+                        {
+                            logger.LogWarning($"JSON variant \"{pair.Key}\" does not have an integer key");
+                            continue;
+                        }
+                        if (TryGetVariant(pair.Value, scene, out var variant))
+                        {
+                            mcustomSpriteSwapper.variantsIndexed[index] = variant;
+                        }
+                    }
+                    break;
+                case JTokenType.String:
+                case JTokenType.Integer:
+                    if (TryGetVariant(jvariants, scene, out var variant2))
+                    {
+                        mcustomSpriteSwapper.variants = [variant2];
+                    }
+                    break;
+                default:
+                    logger.LogWarning($"JSON variants is a {jvariants.Type} when it should be an array, object, string, or integer");
+                    break;
+            }
+        }
+        return mcustomSpriteSwapper;
+    }
+
+    public bool TryGetVariant(JToken jtoken, SceneKey scene, out int variant)
+    {
+        switch (jtoken.Type)
+        {
+            case JTokenType.String:
+                if (!VariantManager.TryGetVariant(scene, (string)jtoken, out variant))
+                {
+                    return false;
+                }
+                return true;
+            case JTokenType.Integer:
+                variant = (int)jtoken;
+                return true;
+        }
+        logger.LogWarning($"JSON variant \"{jtoken}\" is a {jtoken.Type} when it should be a string or integer");
+        variant = -1;
+        return false;
     }
 
     // STRUCTS //
@@ -324,7 +396,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         str = str.TrimStart('#');
         int rgb = Convert.ToInt32(str, 16);
         Color jcolor = new Color(float.NaN, float.NaN, float.NaN, float.NaN);
-        for (int i = 0; i < str.Length / 2; i++)
+        for (int i = 0; i < str.Length / 2 && i < 4; i++)
         {
             jcolor[i] = (rgb & 0xFF) / 255.0f;
             rgb >>= 8;
@@ -367,6 +439,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         jtoken = (T)jtoken2;
         return true;
     }
+
     public bool TryGetJValue(JObject jobj, string key, JTokenType type, out JValue jvalue)
     {
         return TryGetJToken(jobj, key, type, out jvalue);
@@ -379,6 +452,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
     {
         return TryGetJToken(jobj, key, JTokenType.Object, out jvalue);
     }
+
     public bool TryGetJMaterial(JObject jobj, string key, out Material mat)
     {
         if (!TryGetJValue(jobj, key, JTokenType.String, out var jmatName))
@@ -387,7 +461,7 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             return false;
         }
         string matName = (string)jmatName;
-        if (!materials.ContainsKey(matName))
+        if (!Materials.ContainsKey(matName))
         {
             Material found = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(s => s.name == matName);
             if (!found)
@@ -397,15 +471,15 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             if (!found)
             {
                 logger.LogWarning($"JSON material \"{matName}\" could not be found");
-                materials[matName] = null;
+                Materials[matName] = null;
             }
             else
             {
-                materials[matName] = found;
+                Materials[matName] = found;
             }
         }
 
-        mat = materials[matName];
+        mat = Materials[matName];
         if (!mat)
         {
             return false;
@@ -421,22 +495,22 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             return false;
         }
         string shaderName = (string)jshaderName;
-        if (!shaderMaterials.ContainsKey(shaderName))
+        if (!ShaderMaterials.ContainsKey(shaderName))
         {
             Shader found = Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(s => s.name == shaderName) ?? 
                            Resources.Load<Shader>($"Shaders/{shaderName}");
             if (!found)
             {
                 logger.LogWarning($"JSON shader \"{shaderName}\" could not be found");
-                shaderMaterials[shaderName] = null;
+                ShaderMaterials[shaderName] = null;
             }
             else
             {
-                shaderMaterials[shaderName] = new Material(found);
+                ShaderMaterials[shaderName] = new Material(found);
             }
         }
 
-        mat = shaderMaterials[shaderName];
+        mat = ShaderMaterials[shaderName];
         if (!mat)
         {
             return false;

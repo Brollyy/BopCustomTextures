@@ -15,10 +15,10 @@ namespace BopCustomTextures.Customs;
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
 /// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
-public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
+public class CustomSceneManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
 {
     public MixtapeEventTemplate sceneModTemplate = sceneModTemplate;
-    public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger);
+    public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger, variantManager);
     public readonly Dictionary<SceneKey, Dictionary<string, MGameObject>> CustomScenes = [];
     public static readonly Regex PathRegex = new Regex(@"[\\/](?:level|scene)s?$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegex = new Regex(@"(\w+).jsonc?$", RegexOptions.IgnoreCase);
@@ -88,7 +88,7 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
             if (jsonInitializer.TryGetJObject(jobj, "init", out var jinit))
             {
                 isSimple = false;
-                CustomScenes[scene][""] = jsonInitializer.InitCustomGameObject(jinit);
+                CustomScenes[scene][""] = jsonInitializer.InitGameObject(jinit, scene);
             }
             if (jsonInitializer.TryGetJObject(jobj, "events", out var jevents))
             {
@@ -97,7 +97,7 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
                 {
                     if (dict.Value.Type == JTokenType.Object)
                     {
-                        CustomScenes[scene][dict.Key] = jsonInitializer.InitCustomGameObject((JObject)dict.Value);
+                        CustomScenes[scene][dict.Key] = jsonInitializer.InitGameObject((JObject)dict.Value, scene);
                     }
                     else
                     {
@@ -108,7 +108,7 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
         }
         if (isSimple)
         {
-            CustomScenes[scene][""] = jsonInitializer.InitCustomGameObject(jobj);
+            CustomScenes[scene][""] = jsonInitializer.InitGameObject(jobj, scene);
         }
     }
 
@@ -168,6 +168,7 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
                 if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
                 {
                     logger.LogError($"Cannot apply scene mod to missing scene {scene}");
+                    continue;
                 }
                 if (mobjsResolved[scene].TryGetValue(key, out var mobjResolved))
                 {

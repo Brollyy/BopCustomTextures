@@ -1,4 +1,5 @@
 ﻿using BopCustomTextures.Customs;
+using BopCustomTextures.Scripts;
 using UnityEngine;
 
 namespace BopCustomTextures.SceneMods;
@@ -26,6 +27,9 @@ public class MGameObject(string name)
                     break;
                 case MParallaxObjectScript mparallaxObjectScript:
                     if (obj.TryGetComponent<ParallaxObjectScript>(out var parallaxObjectScript)) mparallaxObjectScript.Apply(parallaxObjectScript);
+                    break;
+                case MCustomSpriteSwapper mcustomSpriteSwapper:
+                    if (obj.TryGetComponent<CustomSpriteSwapper>(out var customSpriteSwapper)) mcustomSpriteSwapper.Apply(customSpriteSwapper);
                     break;
             }
         }

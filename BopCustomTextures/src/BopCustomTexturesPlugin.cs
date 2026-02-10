@@ -160,6 +160,15 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
         }
     }
 
+    [HarmonyPatch(typeof(MixtapeLoaderCustom), "InitScene")]
+    private static class MixtapeLoaderCustomGetOrLoadScenePatch
+    {
+        static void Postfix(MixtapeLoaderCustom __instance, SceneKey sceneKey)
+        {
+            Manager.InitScene(__instance, sceneKey);
+        }
+    }
+
     [HarmonyPatch(typeof(MixtapeLoaderCustom), "Start")]
     private static class MixtapeLoaderCustomStartPatch
     {

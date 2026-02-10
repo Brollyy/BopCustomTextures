@@ -9,28 +9,13 @@ namespace BopCustomTextures.Scripts;
 /// Unity component that swaps a spriteRenderer's sprite to a custom one if a custom one is available.
 /// </summary>
 [DefaultExecutionOrder(2)] // because of flow worms
-internal class CustomSpriteSwapper : MonoBehaviour
+public class CustomSpriteSwapper : MonoBehaviour
 {
     public Sprite LastVanilla;
     public Sprite Last;
-    private List<int> _variants = [];
+    public readonly List<int> Variants = [];
     public CustomTextureManager TextureManager;
     public SpriteRenderer SpriteRenderer;
-
-    public List<int> Variants
-    {
-        get => _variants;
-        set
-        {
-            _variants = value;
-            ReplaceCustomSprites();
-        }
-    }
-
-    void Awake()
-    {
-        SpriteRenderer = gameObject.GetComponent<SpriteRenderer>();
-    }
 
     void LateUpdate()
     {
@@ -43,8 +28,26 @@ internal class CustomSpriteSwapper : MonoBehaviour
 
     public void ReplaceCustomSprites()
     {
-        Last = TextureManager.ReplaceCustomSprite(LastVanilla, _variants);
+        Last = TextureManager.ReplaceCustomSprite(LastVanilla, Variants);
         SpriteRenderer.sprite = Last;
+    }
+
+    public void ApplyVariants(List<int> newVariants)
+    {
+        Variants.Clear();
+        foreach (var variants in newVariants)
+        {
+            Variants.Add(variants);
+        }
+        ReplaceCustomSprites();
+    }
+    public void ApplyVariants(Dictionary<int, int> indexedVariants)
+    {
+        foreach (var pair in indexedVariants)
+        {
+            Variants[pair.Key] = pair.Value;
+        }
+        ReplaceCustomSprites();
     }
 }
 

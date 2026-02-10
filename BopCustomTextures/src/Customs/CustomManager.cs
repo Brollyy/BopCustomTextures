@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace BopCustomTextures.Customs;
@@ -12,7 +13,7 @@ namespace BopCustomTextures.Customs;
 /// <param name="logger">Plugin-specific logger</param>
 /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
 /// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
-public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate sceneModTemplate, MixtapeEventTemplate[] textureVariantTemplates) : BaseCustomManager(logger)
+public class CustomManager : BaseCustomManager
 {
     public string version;
     public uint release;
@@ -22,9 +23,18 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     public DateTime lastModified;
     public bool readNecessary = true;
 
-    public CustomSceneManager sceneManager = new CustomSceneManager(logger, sceneModTemplate);
-    public CustomTextureManager textureManager = new CustomTextureManager(logger, textureVariantTemplates);
-    public CustomFileManager fileManager = new CustomFileManager(logger, tempPath);
+    public CustomSceneManager sceneManager;
+    public CustomTextureManager textureManager;
+    public CustomVariantNameManager variantManager;
+    public CustomFileManager fileManager;
+
+    public CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate sceneModTemplate, MixtapeEventTemplate[] textureVariantTemplates) : base(logger)
+    {
+        variantManager = new CustomVariantNameManager(logger);
+        sceneManager = new CustomSceneManager(logger, variantManager, sceneModTemplate);
+        textureManager = new CustomTextureManager(logger, variantManager, textureVariantTemplates);
+        fileManager = new CustomFileManager(logger, tempPath);
+    }
 
     public void ReadDirectory(string path, bool backup)
     {
@@ -49,20 +59,24 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
         var subpaths = Directory.EnumerateDirectories(path);
         foreach (var subpath in subpaths)
         {
-            var backup2 = false;
+            if (CustomTextureManager.IsCustomTextureDirectory(subpath))
+            {
+                filesLoaded += textureManager.LocateCustomTextures(subpath, path);
+                if (backup)
+                {
+                    fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
+                }
+            }
+        }
+        foreach (var subpath in subpaths)
+        {
             if (CustomSceneManager.IsCustomSceneDirectory(subpath))
             {
                 filesLoaded += sceneManager.LocateCustomScenes(subpath, path, release);
-                backup2 = backup;
-            }
-            else if (CustomTextureManager.IsCustomTextureDirectory(subpath))
-            {
-                filesLoaded += textureManager.LocateCustomTextures(subpath, path);
-                backup2 = backup;
-            }
-            if (backup)
-            {
-                fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
+                if (backup)
+                {
+                    fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
+                }
             }
         }
         if (filesLoaded > 0)
@@ -98,6 +112,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     {
         sceneManager.UnloadCustomScenes();
         textureManager.UnloadCustomTextures();
+        variantManager.UnloadCustomTextureVariants();
         fileManager.DeleteTempDirectory();
         lastPath = null;
         lastModified = default;
@@ -136,7 +151,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     {
         foreach (var dict in rootObjectsRef(__instance))
         {
-            InitScene(__instance, dict.Key);
+            sceneManager.InitCustomScene(__instance, dict.Key);
         }
         PrepareEvents(__instance, entitiesRef(__instance));
     }
