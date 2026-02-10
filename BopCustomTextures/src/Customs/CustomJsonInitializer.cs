@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using ILogger = BopCustomTextures.Logging.ILogger;
 using System.Linq;
+using System;
 
 namespace BopCustomTextures.Customs;
 
@@ -100,20 +101,19 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
     public MTransform InitCustomTransform(JObject jtransform)
     {
         var mtransform = new MTransform();
-        JObject jobj;
-        if (TryGetJObject(jtransform, "LocalPosition", out jobj)) mtransform.localPosition = InitCustomVector3(jobj);
-        if (TryGetJObject(jtransform, "LocalRotation", out jobj)) mtransform.localRotation = InitCustomQuaternion(jobj);
-        if (TryGetJObject(jtransform, "LocalEulerAngles", out jobj)) mtransform.localEulerAngles = InitCustomVector3(jobj);
-        if (TryGetJObject(jtransform, "LocalScale", out jobj)) mtransform.localScale = InitCustomVector3(jobj);
+        if (TryGetJVector3(jtransform, "LocalPosition", out var vector3)) mtransform.localPosition = vector3;
+        if (TryGetJQuaternion(jtransform, "LocalRotation", out var quaternion)) mtransform.localRotation = quaternion;
+        if (TryGetJEulerAngles(jtransform, "LocalEulerAngles", out vector3)) mtransform.localEulerAngles = vector3;
+        if (TryGetJVector3(jtransform, "LocalEulerAngles", out vector3)) mtransform.localEulerAngles = vector3;
+        if (TryGetJVector3(jtransform, "LocalScale", out vector3)) mtransform.localScale = vector3;
         return mtransform;
     }
 
     public MSpriteRenderer InitCustomSpriteRenderer(JObject jspriteRenderer)
     {
         var mspriteRenderer = new MSpriteRenderer();
-        JObject jobj;
-        if (TryGetJObject(jspriteRenderer, "Color", out jobj)) mspriteRenderer.color = InitCustomColor(jobj);
-        if (TryGetJObject(jspriteRenderer, "Size", out jobj)) mspriteRenderer.size = InitCustomVector2(jobj);
+        if (TryGetJColor(jspriteRenderer, "Color", out var color)) mspriteRenderer.color = color;
+        if (TryGetJVector2(jspriteRenderer, "Size", out var vector2)) mspriteRenderer.size = vector2;
         JValue jval;
         if (TryGetJValue(jspriteRenderer, "FlipX", JTokenType.Boolean, out jval)) mspriteRenderer.flipX = (bool)jval;
         if (TryGetJValue(jspriteRenderer, "FlipY", JTokenType.Boolean, out jval)) mspriteRenderer.flipY = (bool)jval;
@@ -135,6 +135,26 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
     }
 
     // STRUCTS //
+    public bool TryGetJVector2(JObject jobj, string key, out Vector2 vector2)
+    {
+        if (!jobj.TryGetValue(key, out var jvector2))
+        {
+            vector2 = default;
+            return false;
+        }
+        switch (jvector2)
+        {
+            case JObject jobj2:
+                vector2 = InitCustomVector2(jobj2);
+                return true;
+            case JArray jarray2:
+                vector2 = InitCustomVector2(jarray2);
+                return true;
+        }
+        logger.LogWarning($"JSON vector2 \"{key}\" is a {jvector2.Type} when it should be an object or array");
+        vector2 = default;
+        return false;
+    }
     public Vector2 InitCustomVector2(JObject jvector2)
     {
         JValue jval;
@@ -142,6 +162,35 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             TryGetJValue(jvector2, "x", JTokenType.Float, out jval) ? (float)jval : float.NaN,
             TryGetJValue(jvector2, "y", JTokenType.Float, out jval) ? (float)jval : float.NaN
         );
+    }
+    public Vector2 InitCustomVector2(JArray jvector2)
+    {
+        JValue jval;
+        return new Vector2(
+            TryGetJValue(jvector2, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jvector2, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN
+        );
+    }
+
+    public bool TryGetJVector3(JObject jobj, string key, out Vector3 vector3)
+    {
+        if (!jobj.TryGetValue(key, out var jvector3))
+        {
+            vector3 = default;
+            return false;
+        }
+        switch (jvector3)
+        {
+            case JObject jobj2:
+                vector3 = InitCustomVector3(jobj2);
+                return true;
+            case JArray jarray2:
+                vector3 = InitCustomVector3(jarray2);
+                return true;
+        }
+        logger.LogWarning($"JSON vector3 \"{key}\" is a {jvector3.Type} when it should be an object or array");
+        vector3 = default;
+        return false;
     }
     public Vector3 InitCustomVector3(JObject jvector3)
     {
@@ -152,7 +201,60 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             TryGetJValue(jvector3, "z", JTokenType.Float, out jval) ? (float)jval : float.NaN
         );
     }
+    public Vector3 InitCustomVector3(JArray jvector3)
+    {
+        JValue jval;
+        return new Vector3(
+            TryGetJValue(jvector3, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jvector3, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jvector3, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN
+        );
+    }
 
+    public bool TryGetJEulerAngles(JObject jobj, string key, out Vector3 eulerAngles)
+    {
+        if (!jobj.TryGetValue(key, out var jvector3))
+        {
+            eulerAngles = default;
+            return false;
+        }
+        switch (jvector3.Type)
+        {
+            case JTokenType.Object:
+                eulerAngles = InitCustomVector3((JObject)jvector3);
+                return true;
+            case JTokenType.Array:
+                eulerAngles = InitCustomVector3((JArray)jvector3);
+                return true;
+            case JTokenType.Float:
+                eulerAngles = new Vector3(float.NaN, (float)jvector3, float.NaN);
+                return true;
+        }
+        logger.LogWarning($"JSON eulerAngles \"{key}\" is a {jvector3.Type} when it should be an object, array, or float");
+        eulerAngles = default;
+        return false;
+    }
+
+    public bool TryGetJQuaternion(JObject jobj, string key, out Quaternion quaternion)
+    {
+        if (!jobj.TryGetValue(key, out var jquaternion))
+        {
+            quaternion = default;
+            return false;
+        }
+        switch (jquaternion)
+        {
+            case JObject jobj2:
+                quaternion = InitCustomQuaternion(jobj2);
+                return true;
+            case JArray jarray2:
+                quaternion = InitCustomQuaternion(jarray2);
+                return true;
+        }
+        logger.LogWarning($"JSON quaternion \"{key}\" is a {jquaternion.Type} when it should be an object or array");
+        quaternion = default;
+        return false;
+    }
     public Quaternion InitCustomQuaternion(JObject jquaternion)
     {
         JValue jval;
@@ -163,7 +265,40 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             TryGetJValue(jquaternion, "w", JTokenType.Float, out jval) ? (float)jval : float.NaN
         );
     }
+    public Quaternion InitCustomQuaternion(JArray jquaternion)
+    {
+        JValue jval;
+        return new Quaternion(
+            TryGetJValue(jquaternion, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jquaternion, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jquaternion, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jquaternion, 3, JTokenType.Float, out jval) ? (float)jval : float.NaN
+        );
+    }
 
+    public bool TryGetJColor(JObject jobj, string key, out Color color)
+    {
+        if (!jobj.TryGetValue(key, out var jcolor))
+        {
+            color = default;
+            return false;
+        }
+        switch (jcolor.Type)
+        {
+            case JTokenType.Object:
+                color = InitCustomColor((JObject)jcolor);
+                return true;
+            case JTokenType.Array:
+                color = InitCustomColor((JArray)jcolor);
+                return true;
+            case JTokenType.String:
+                color = InitCustomColor((string)jcolor);
+                return true;
+        }
+        logger.LogWarning($"JSON color \"{key}\" is a {jcolor.Type} when it should be an object, array, or string");
+        color = default;
+        return false;
+    }
     public Color InitCustomColor(JObject jcolor)
     {
         JValue jval;
@@ -173,6 +308,28 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
             TryGetJValue(jcolor, "b", JTokenType.Float, out jval) ? (float)jval : float.NaN,
             TryGetJValue(jcolor, "a", JTokenType.Float, out jval) ? (float)jval : float.NaN
         );
+    }
+    public Color InitCustomColor(JArray jcolor)
+    {
+        JValue jval;
+        return new Color(
+            TryGetJValue(jcolor, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jcolor, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jcolor, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN,
+            TryGetJValue(jcolor, 3, JTokenType.Float, out jval) ? (float)jval : float.NaN
+        );
+    }
+    public Color InitCustomColor(string str)
+    {
+        str = str.TrimStart('#');
+        int rgb = Convert.ToInt32(str, 16);
+        Color jcolor = new Color(float.NaN, float.NaN, float.NaN, float.NaN);
+        for (int i = 0; i < str.Length / 2; i++)
+        {
+            jcolor[i] = (rgb & 0xFF) / 255.0f;
+            rgb >>= 8;
+        }
+        return jcolor;
     }
 
 
@@ -193,9 +350,30 @@ public class CustomJsonInitializer(ILogger logger) : BaseCustomManager(logger)
         jtoken = (T)jtoken2;
         return true;
     }
+    public bool TryGetJToken<T>(JArray jarray, int index, JTokenType type, out T jtoken) where T : JToken
+    {
+        if (jarray.Count <= index)
+        {
+            jtoken = null;
+            return false;
+        }
+        var jtoken2 = jarray[index];
+        if (jtoken2.Type != type)
+        {
+            logger.LogWarning($"JSON index \"{index}\" is a {jtoken2.Type} when it should be a {type}");
+            jtoken = null;
+            return false;
+        }
+        jtoken = (T)jtoken2;
+        return true;
+    }
     public bool TryGetJValue(JObject jobj, string key, JTokenType type, out JValue jvalue)
     {
         return TryGetJToken(jobj, key, type, out jvalue);
+    }
+    public bool TryGetJValue(JArray Jarray, int index, JTokenType type, out JValue jvalue)
+    {
+        return TryGetJToken(Jarray, index, type, out jvalue);
     }
     public bool TryGetJObject(JObject jobj, string key, out JObject jvalue)
     {

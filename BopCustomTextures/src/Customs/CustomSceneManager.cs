@@ -14,13 +14,14 @@ namespace BopCustomTextures.Customs;
 /// Manages scene mods, including loading them from the source file and applying them when the mixtape is played.
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
+/// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
 public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
 {
     public MixtapeEventTemplate sceneModTemplate = sceneModTemplate;
     public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger);
     public readonly Dictionary<SceneKey, Dictionary<string, MGameObject>> CustomScenes = [];
     public static readonly Regex PathRegex = new Regex(@"[\\/](?:level|scene)s?$", RegexOptions.IgnoreCase);
-    public static readonly Regex FileRegex = new Regex(@"(\w+).json$", RegexOptions.IgnoreCase);
+    public static readonly Regex FileRegex = new Regex(@"(\w+).jsonc?$", RegexOptions.IgnoreCase);
 
     public static bool IsCustomSceneDirectory(string path)
     {
@@ -74,10 +75,12 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
         catch (JsonReaderException e)
         {
             logger.LogError(e);
-            CustomScenes.Remove(scene);
             return;
         }
-
+        if (CustomScenes.ContainsKey(scene))
+        {
+            logger.LogWarning($"Duplicate custom scene definition for scene {scene}");
+        }
         CustomScenes[scene] = new Dictionary<string, MGameObject>();
         bool isSimple = true;
         if (release >= 2)
@@ -155,12 +158,12 @@ public class CustomSceneManager(ILogger logger, MixtapeEventTemplate sceneModTem
                 if (scene == SceneKey.Invalid)
                 {
                     logger.LogError($"Scene \"{sceneStr}\" is not a valid scene key");
-                    return;
+                    continue;
                 }
                 if (!CustomScenes.ContainsKey(scene))
                 {
                     logger.LogError($"Cannot apply scene mod to vanilla scene {scene}");
-                    return;
+                    continue;
                 }
                 if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
                 {

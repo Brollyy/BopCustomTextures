@@ -11,7 +11,8 @@ namespace BopCustomTextures.Customs;
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
 /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
-public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
+/// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
+public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate sceneModTemplate, MixtapeEventTemplate[] textureVariantTemplates) : BaseCustomManager(logger)
 {
     public string version;
     public uint release;
@@ -22,7 +23,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     public bool readNecessary = true;
 
     public CustomSceneManager sceneManager = new CustomSceneManager(logger, sceneModTemplate);
-    public CustomTextureManager textureManager = new CustomTextureManager(logger);
+    public CustomTextureManager textureManager = new CustomTextureManager(logger, textureVariantTemplates);
     public CustomFileManager fileManager = new CustomFileManager(logger, tempPath);
 
     public void ReadDirectory(string path, bool backup)
@@ -35,7 +36,13 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
         hasCustomAssets = GetMixtapeVersion(path);
         if (release > BopCustomTexturesPlugin.LowestRelease)
         {
-            logger.LogEditorError($"Mixtape requires {MyPluginInfo.PLUGIN_GUID} v{version}+, but you are on v{MyPluginInfo.PLUGIN_VERSION}. You may have to update {MyPluginInfo.PLUGIN_GUID} to play properly.");
+            logger.LogEditorError($"Mixtape requires {MyPluginInfo.PLUGIN_GUID} v{version}+, " +
+                $"but you are on v{MyPluginInfo.PLUGIN_VERSION}. You may have to update {MyPluginInfo.PLUGIN_GUID} to play properly.");
+        }
+        else if (release < BopCustomTexturesPlugin.LowestRelease)
+        {
+            logger.LogEditorWarning($"Mixtape was made for {MyPluginInfo.PLUGIN_GUID} v{version}, " +
+                $"while you are on v{MyPluginInfo.PLUGIN_VERSION}. Save this mixtape in the editor to update its version!");
         }
 
         int filesLoaded = 0;
@@ -63,7 +70,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
             if (!hasCustomAssets)
             {
-                logger.LogEditorWarning("This file with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
+                logger.LogEditorWarning("This mixtape with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
                     "Save this mixtape in the editor to add a \"BopCustomTextures.json\" file automatically!"
                     );
                 hasCustomAssets = true;
@@ -74,6 +81,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
             logger.LogInfo("No custom assets found");
         }
         sceneManager.UpdateEventTemplates();
+        textureManager.UpdateEventTemplates();
     }
 
     public void WriteDirectory(string path)
@@ -136,6 +144,7 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     public void PrepareEvents(MixtapeLoaderCustom __instance, Entity[] entities)
     {
         sceneManager.PrepareEvents(__instance, entities);
+        textureManager.PrepareEvents(__instance, entities);
     }
 
     public bool GetMixtapeVersion(string path)
@@ -205,8 +214,8 @@ public class CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate
     public void WriteMixtapeVersion(string path)
     {
         var jobj = new JObject();
-        jobj["version"] = new JValue(version);
-        jobj["release"] = new JValue(release);
+        jobj["version"] = new JValue(BopCustomTexturesPlugin.LowestVersion);
+        jobj["release"] = new JValue(BopCustomTexturesPlugin.LowestRelease);
 
         try
         {

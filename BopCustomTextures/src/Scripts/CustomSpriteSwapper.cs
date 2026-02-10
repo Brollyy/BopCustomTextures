@@ -1,5 +1,7 @@
 ﻿using BopCustomTextures.Customs;
 using UnityEngine;
+using System.Collections.Generic;
+using System;
 
 namespace BopCustomTextures.Scripts;
 
@@ -9,23 +11,40 @@ namespace BopCustomTextures.Scripts;
 [DefaultExecutionOrder(2)] // because of flow worms
 internal class CustomSpriteSwapper : MonoBehaviour
 {
-    public Sprite last;
-    public SceneKey scene;
-    public CustomTextureManager textureManager;
-    public SpriteRenderer spriteRenderer;
+    public Sprite LastVanilla;
+    public Sprite Last;
+    private List<int> _variants = [];
+    public CustomTextureManager TextureManager;
+    public SpriteRenderer SpriteRenderer;
+
+    public List<int> Variants
+    {
+        get => _variants;
+        set
+        {
+            _variants = value;
+            ReplaceCustomSprites();
+        }
+    }
 
     void Awake()
     {
-        spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
+        SpriteRenderer = gameObject.GetComponent<SpriteRenderer>();
     }
 
     void LateUpdate()
     {
-        if (spriteRenderer.sprite != last)
+        if (SpriteRenderer.sprite != Last)
         {
-            textureManager.ReplaceCustomSprite(spriteRenderer, scene);
-            last = spriteRenderer.sprite;
+            LastVanilla = SpriteRenderer.sprite;
+            ReplaceCustomSprites();
         }
+    }
+
+    public void ReplaceCustomSprites()
+    {
+        Last = TextureManager.ReplaceCustomSprite(LastVanilla, _variants);
+        SpriteRenderer.sprite = Last;
     }
 }
 

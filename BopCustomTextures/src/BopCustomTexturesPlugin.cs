@@ -85,7 +85,9 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
         Harmony.PatchAll();
         MixtapeEventTemplates.entities[MyPluginInfo.PLUGIN_GUID] = new List<MixtapeEventTemplate>(BopCustomTexturesEventTemplates.templates);
 
-        Manager = new CustomManager(customlogger, GetTempPath(), BopCustomTexturesEventTemplates.sceneModTemplate);
+        Manager = new CustomManager(customlogger, GetTempPath(), 
+            BopCustomTexturesEventTemplates.sceneModTemplate,
+            BopCustomTexturesEventTemplates.textureVariantTemplates);
 
         // Apply hooks to make sure temp files are deleted on program exit
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
