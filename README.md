@@ -61,7 +61,9 @@ Then include `version` and `release` properties as such.
 ```
 
 ### Adding Custom Textures
-With the ``textures`` folder created, you're about ready to start adding custom textures to your mixtape. But first, you'll need to create a subfolder in ``textures`` corresponding to the game the textures are for. To target a game, you'll need to name the subfolder the internal name of the game. If you aren't sure what this is for the game you're targeting, this will always just be whatever name the game is listed as in the Mixtape Editor without any punctuation or spaces. For example, a non-mixtape game like "Rock, Paper, Showdown!" will become ``RockPaperShowdown``, while a mixtape game like "Flow Worms (Sky)" will become ``FlowWormsSky``.
+With the ``textures`` folder created, you're about ready to start adding custom textures to your mixtape. But first, you'll need to create a subfolder in ``textures`` corresponding to the game the textures are for. To target a game, you'll need to name the subfolder the internal name of the game. If you aren't sure what this is for the game you're targeting, this will usually be whatever name the game is listed as in the Mixtape Editor without any punctuation or spaces. For example, a non-mixtape game like "Rock, Paper, Showdown!" will become ``RockPaperShowdown``, while a mixtape game like "Flow Worms (Sky)" will become ``FlowWormsSky``. There are two exceptions: 
+- "B-Bot and The Fly Girls" is ``BBot`` and ``BBotSky``
+- "Meet & Tweet" is ``MeetAndTweet`` and ``MeetAndTweetSky``.
 
 If you were targeting "Flow Worms (Sky)" and "Rock, Paper, Showdown!", your ``textures`` folder should now contain the following subfolders:
 ```
@@ -88,7 +90,7 @@ If, instead of replacing an entire atlas texture, you just want to replace one i
 #### Using Textures with Different Dimensions from Base Texture
 Supplying a texture with different dimensions from the base texture is handled differently depending on what kind of custom texture you're using. 
  - If you're using an atlas texture, the custom texture will be scaled to fit the dimensions of the old texture. This way you can downscale your base textures and they will still work.
- - If you're using a separate texture, the custom texture will be treated as if you expanded the canvas size of the base texture with it centered. Any extra bounds will be added on all sides of the image equally. This way, if you wanna add something to a sprite outside of the bounds of its texture, you can simply expand it on all sides such that the additions now fit on the canvas.
+ - If you're using a separate texture, the custom texture will be treated as if you expanded the canvas size of the base texture with it centered. Any extra bounds will be added on all sides of the image equally. This way, if you want to add something to a sprite outside of the bounds of its texture, you can simply expand it on all sides such that the additions now fit on the canvas.
 
 #### Optimizing for Size
 Most of Bits & Bops's sprites are illustrated for 1080p viewing, and Bits & Bops has a lot of sprites. As such, you will probably soon notice the file size of your .bop file ballooning due to all these custom textures. Here I have a couple of suggestions for reducing file size:
