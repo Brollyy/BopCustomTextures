@@ -1,5 +1,8 @@
 ﻿namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene mod ParallaxObjectScript definition
+/// </summary>
 public class MParallaxObjectScript : MComponent
 {
     public float? parallaxScale;

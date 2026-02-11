@@ -10,7 +10,7 @@ namespace BopCustomTextures.Customs;
 /// <summary>
 /// Base class for all custom asset managers.
 /// </summary>
-/// <param name="logger">Plugin-specific logger</param>
+/// <param name="logger">Plugin-specific logger.</param>
 public class BaseCustomManager(ILogger logger)
 {
     public ILogger logger = logger;

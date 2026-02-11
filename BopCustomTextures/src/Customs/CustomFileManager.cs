@@ -6,8 +6,8 @@ namespace BopCustomTextures.Customs;
 /// <summary>
 /// Manages source files in custom mixtapes, including routines to load them and save them in future mixtapes.
 /// </summary>
-/// <param name="logger">Plugin-specific logger</param>
-/// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
+/// <param name="logger">Plugin-specific logger.</param>
+/// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded.</param>
 public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomManager(logger)
 {
     public string tempPath = tempPath;

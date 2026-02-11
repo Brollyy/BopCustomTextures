@@ -2,6 +2,9 @@
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene mod SpriteRenderer definition
+/// </summary>
 public class MSpriteRenderer : MComponent
 {
     public Color? color;

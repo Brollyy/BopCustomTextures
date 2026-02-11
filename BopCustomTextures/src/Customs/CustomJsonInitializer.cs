@@ -9,9 +9,10 @@ using System;
 namespace BopCustomTextures.Customs;
 
 /// <summary>
-/// Class of methods used to apply scene mods.
+/// Used to parse JSON-defined scene mods.
 /// </summary>
-/// <param name="logger">Plugin-specific logger</param>
+/// <param name="logger">Plugin-specific logger.</param>
+/// <param name="variantManager">Used for mapping custom texture variant external names to internal indices. Shared with CustomTextureManager.</param>
 public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager variantManager) : BaseCustomManager(logger)
 {
     private readonly Dictionary<string, Material> Materials = [];

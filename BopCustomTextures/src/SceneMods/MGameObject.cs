@@ -4,6 +4,10 @@ using UnityEngine;
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene mod GameObject definition. Includes no reference to the GameObject to modify, only a path to it.
+/// </summary>
+/// <param name="name">Name of/Path to GameObject to modify</param>
 public class MGameObject(string name)
 {
     public string name = name;

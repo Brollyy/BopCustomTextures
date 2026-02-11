@@ -1,13 +1,14 @@
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using System.Linq;
 using TMPro;
-using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace BopCustomTextures.Logging;
 
 /// <summary>
-/// Wrapper class for BepInEx's ManualLogSource with special methods for log messages with configurable log levels.
+/// Wrapper class for BepInEx's ManualLogSource with special methods for logging messages with configurable log levels
+/// and outputing messages to the mixtape editor's dialogue box.
 /// </summary>
 /// <param name="logger">Internal BepInEx ManualLogSource</param>
 /// <param name="pluginName">Plugin name to display when using LogEditor</param>
@@ -15,35 +16,51 @@ namespace BopCustomTextures.Logging;
 /// <param name="logUnloading">Log level for asset unloading messages</param>
 /// <param name="logSeperateTextureSprites">Log level for sprite creation from seperate textures</param>
 /// <param name="logAtlasTextureSprites">Log level for sprite creation from atlas textures</param>
-public class ManualLogSourceCustom(ManualLogSource logger, string pluginName, LogLevel logFileLoading, LogLevel logUnloading, LogLevel logSeperateTextureSprites, LogLevel logAtlasTextureSprites) : ILogger
+public class ManualLogSourceCustom(ManualLogSource logger, string pluginName, 
+    ConfigEntry<LogLevel> logFileLoading,
+    ConfigEntry<LogLevel> logUnloading,
+    ConfigEntry<LogLevel> logSeperateTextureSprites,
+    ConfigEntry<LogLevel> logAtlasTextureSprites,
+    ConfigEntry<LogLevel> logOutdatedPlugin,
+    ConfigEntry<LogLevel> logUpgradeMixtape) : ILogger
 {
     private readonly ManualLogSource logger = logger;
     private readonly string pluginName = pluginName;
-    private readonly LogLevel logFileLoading = logFileLoading;
-    private readonly LogLevel logUnloading = logUnloading;
-    private readonly LogLevel logSeperateTextureSprites = logSeperateTextureSprites;
-    private readonly LogLevel logAtlasTextureSprites = logAtlasTextureSprites;
+    private readonly ConfigEntry<LogLevel> logFileLoading = logFileLoading;
+    private readonly ConfigEntry<LogLevel> logUnloading = logUnloading;
+    private readonly ConfigEntry<LogLevel> logSeperateTextureSprites = logSeperateTextureSprites;
+    private readonly ConfigEntry<LogLevel> logAtlasTextureSprites = logAtlasTextureSprites;
+    private readonly ConfigEntry<LogLevel> logOutdatedPlugin = logOutdatedPlugin;
+    private readonly ConfigEntry<LogLevel> logUpgradeMixtape = logUpgradeMixtape;
 
     public void LogFileLoading(object data)
     {
-        logger.Log(logFileLoading, data);
+        Log(logFileLoading.Value, data);
     }
     public void LogUnloading(object data)
     {
-        logger.Log(logUnloading, data);
+        Log(logUnloading.Value, data);
     }
     public void LogSeperateTextureSprites(object data)
     {
-        logger.Log(logSeperateTextureSprites, data);
+        Log(logSeperateTextureSprites.Value, data);
     }
     public void LogAtlasTextureSprites(object data)
     {
-        logger.Log(logAtlasTextureSprites, data);
+        Log(logAtlasTextureSprites.Value, data);
     }
 
-    public void LogEditor(LogLevel level, object data)
+    public void LogOutdatedPlugin(object data)
     {
-        logger.Log(level, data);
+        Log(logOutdatedPlugin.Value, data);
+    }
+    public void LogUpgradeMixtape(object data)
+    {
+        Log(logUpgradeMixtape.Value, data);
+    }
+
+    public void LogEditor(object data)
+    {
         Scene scene = SceneManager.GetActiveScene();
         if (scene.name != "MixtapeEditor")
         {
@@ -59,19 +76,14 @@ public class ManualLogSourceCustom(ManualLogSource logger, string pluginName, Lo
         obj.SetActive(true);
         obj.GetComponentInChildren<TMP_Text>().text = $"[{pluginName}] {data}";
     }
-    public void LogEditorError(object data)
-    {
-        LogEditor(LogLevel.Error, data);
-    }
-    public void LogEditorWarning(object data)
-    {
-        LogEditor(LogLevel.Warning, data);
-    }
-
 
     public void Log(LogLevel level, object data)
     {
-        logger.Log(level, data);
+        if ((level & LogLevel.MixtapeEditor) == LogLevel.MixtapeEditor)
+        {
+            LogEditor(data);
+        }
+        logger.Log((BepInEx.Logging.LogLevel)level & BepInEx.Logging.LogLevel.All, data);
     }
 
     public void LogFatal(object data)

@@ -2,6 +2,9 @@
 
 namespace BopCustomTextures.EventTemplates;
 
+/// <summary>
+/// Static class of BopCustomTexture mixtape event templates.
+/// </summary>
 public class BopCustomTexturesEventTemplates
 {
     public static readonly MixtapeEventTemplate sceneModTemplate = new()
@@ -50,16 +53,16 @@ public class BopCustomTexturesEventTemplates
 
     public static readonly MixtapeEventTemplate[] textureVariantTemplates =
     [
+        setTextureVariantTemplate,
         addTextureVariantTemplate,
-        removeTextureVariantTemplate,
-        setTextureVariantTemplate
+        removeTextureVariantTemplate
     ];
 
     public static readonly MixtapeEventTemplate[] templates =
     [
+        setTextureVariantTemplate,
         addTextureVariantTemplate,
         removeTextureVariantTemplate,
-        setTextureVariantTemplate,
         sceneModTemplate
     ];
 }

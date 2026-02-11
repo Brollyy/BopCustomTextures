@@ -1,8 +1,10 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene mod Transform definition
+/// </summary>
 public class MTransform: MComponent
 {
     public Vector3? localPosition;

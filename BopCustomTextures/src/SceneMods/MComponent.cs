@@ -1,8 +1,10 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene Mod generic component definition.
+/// </summary>
 public abstract class MComponent
 {
     public Vector2 ApplyVector2(Vector2 src, Vector2 dest)

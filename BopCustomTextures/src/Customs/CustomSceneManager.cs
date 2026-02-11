@@ -14,7 +14,8 @@ namespace BopCustomTextures.Customs;
 /// Manages scene mods, including loading them from the source file and applying them when the mixtape is played.
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
-/// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
+/// <param name="variantManager">Used for mapping custom texture variant external names to internal indices. Passed to CustomJsonInitializer.</param>
+/// <param name="sceneModTemplate">Mixtape event template for applying scene mods.</param>
 public class CustomSceneManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
 {
     public MixtapeEventTemplate sceneModTemplate = sceneModTemplate;

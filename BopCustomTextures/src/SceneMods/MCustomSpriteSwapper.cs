@@ -1,9 +1,11 @@
 using BopCustomTextures.Scripts;
-using System;
 using System.Collections.Generic;
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Scene mod CustomSpriteSwapper definition
+/// </summary>
 public class MCustomSpriteSwapper : MComponent
 {
     public List<int> variants;

@@ -11,6 +11,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
+using LogLevel = BopCustomTextures.Logging.LogLevel;
 
 namespace BopCustomTextures;
 
@@ -20,16 +21,28 @@ namespace BopCustomTextures;
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 public class BopCustomTexturesPlugin : BaseUnityPlugin
 {
-    // lowest version string saved mixtapes will support
+    /// <summary>
+    /// lowest version string saved mixtapes will support
+    /// </summary>
     public static readonly string LowestVersion = "0.2.0";
-    // lowest release number saved mixtapes will support
+    /// <summary>
+    /// lowest release number saved mixtapes will support
+    /// </summary>
     public static readonly uint LowestRelease = 2;
+    /// <summary>
+    /// plugin name within logger
+    /// </summary>
+    public static readonly string LoggerName = "CustomTex";
 
     public static new ManualLogSource Logger;
     public static CustomManager Manager;
     public Harmony Harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
 
     private static ConfigEntry<bool> saveCustomFiles;
+    private static ConfigEntry<bool> upgradeOldMixtapes;
+
+    private static ConfigEntry<LogLevel> logOutdatedPlugin;
+    private static ConfigEntry<LogLevel> logUpgradeMixtape;
 
     private static ConfigEntry<LogLevel> logFileLoading;
     private static ConfigEntry<LogLevel> logUnloading;
@@ -40,46 +53,67 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
     private void Awake()
     {
         // Plugin startup logic
-        Logger = base.Logger;
+        BepInEx.Logging.Logger.Sources.Remove(base.Logger);
+        Logger = BepInEx.Logging.Logger.CreateLogSource(LoggerName);
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
         // Config loading
         saveCustomFiles = Config.Bind("Editor",
             "SaveCustomFiles",
             true,
-            "When opening a mixtape in the editor with custom files, save these files whenever the mixtape is saved");
+            "When opening a modded mixtape in the editor, save these files whenever the mixtape is saved");
 
-        logFileLoading = Config.Bind("Logging",
+        upgradeOldMixtapes = Config.Bind("Editor",
+            "UpgradeOldMixtapes",
+            true,
+            "When opening a modded mixtape for an older version of the plugin in the editor, upgrade the mixtape version to the current one when saving.");
+
+
+        logOutdatedPlugin = Config.Bind("Logging",
+            "logOutdatedPlugin",
+            LogLevel.Error | LogLevel.MixtapeEditor,
+            "Log level for message indicating BopCustomTextures needs to be updated to play a mixtape");
+
+        logUpgradeMixtape = Config.Bind("Logging",
+            "LogUpgradeMixtape",
+            LogLevel.Warning | LogLevel.MixtapeEditor,
+            "Log level for messaage reminding user to save a mixtape to add/upgrade its BopCustomTextures.json file");
+
+
+        logFileLoading = UpgradeOrBind("Logging", "Logging.Debugging",
             "LogFileLoading",
             LogLevel.Debug,
             "Log level for verbose file loading of custom files in .bop archives");
 
-        logUnloading = Config.Bind("Logging",
+        logUnloading = UpgradeOrBind("Logging", "Logging.Debugging",
             "LogUnloading",
             LogLevel.Debug,
             "Log level for verbose custom asset unloading");
 
-        logSeperateTextureSprites = Config.Bind("Logging",
+        logSeperateTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
             "LogSeperateTextureSprites",
             LogLevel.Debug,
             "Log level for verbose custom sprite creation from seperate textures");
 
-        logAtlasTextureSprites = Config.Bind("Logging",
+        logAtlasTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
             "LogAtlasTextureSprites",
             LogLevel.Debug,
             "Log level for verbose custom sprite creation from atlas textures");
 
-        logSceneIndices = Config.Bind("Logging",
+
+        logSceneIndices = UpgradeOrBind("Logging", "Logging.Modding",
             "LogSceneIndices",
             LogLevel.None,
             "Log level for vanilla scene loading, including scene name + build index (for locating level and sharedassets files)");
 
         var customlogger = new ManualLogSourceCustom(Logger,
             MyPluginInfo.PLUGIN_NAME,
-            logFileLoading.Value,
-            logUnloading.Value,
-            logSeperateTextureSprites.Value,
-            logAtlasTextureSprites.Value
+            logFileLoading,
+            logUnloading,
+            logSeperateTextureSprites,
+            logAtlasTextureSprites,
+            logOutdatedPlugin,
+            logUpgradeMixtape
         );
 
         Harmony.PatchAll();
@@ -101,7 +135,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             // Apply hook to log scene loading if enabled in config
             SceneManager.sceneLoaded += delegate (Scene scene, LoadSceneMode mode)
             {
-                Logger.Log(logSceneIndices.Value, $"{scene.buildIndex} - {scene.name}");
+                customlogger.Log(logSceneIndices.Value, $"{scene.buildIndex} - {scene.name}");
             };
         }
     }
@@ -111,7 +145,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
     {
         static void Postfix(string path)
         {
-            Manager.ReadDirectory(path, saveCustomFiles.Value && CustomFileManager.ShouldBackupDirectory());
+            Manager.ReadDirectory(path, saveCustomFiles.Value && CustomFileManager.ShouldBackupDirectory(), upgradeOldMixtapes.Value);
         }
     }
 
@@ -120,7 +154,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
     {
         static void Postfix(string path)
         {
-            Manager.WriteDirectory(path);
+            Manager.WriteDirectory(path, upgradeOldMixtapes.Value);
         }
     }
 
@@ -222,5 +256,22 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
     {
         SceneKey activeSceneKey = TempoSceneManager.GetActiveSceneKey();
         return activeSceneKey == SceneKey.MixtapeEditor || activeSceneKey == SceneKey.MixtapeCustom;
+    }
+
+    private ConfigEntry<T> UpgradeOrBind<T>(string oldSection, string newSection, string key, T defaultValue, string description)
+    {
+        var oldEntry = Config.Bind(
+            oldSection,
+            key,
+            defaultValue,
+            description
+        );
+        Config.Remove(new ConfigDefinition(oldSection, key));
+        return Config.Bind(
+            newSection,
+            key,
+            oldEntry.Value,
+            description
+        );
     }
 }

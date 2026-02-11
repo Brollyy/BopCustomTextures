@@ -4,6 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace BopCustomTextures.Customs;
 
+/// <summary>
+/// Manager of mapping custom texture variant external names to internal indices.
+/// Needed so CustomTextureManager and CustomJsoninitializer can work together.
+/// </summary>
+/// <param name="logger">Plugin-specific logger.</param>
 public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger)
 {
     public readonly Dictionary<SceneKey, Dictionary<string, int>> VariantMaps = [];
@@ -24,7 +29,7 @@ public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger
         var match = VariantRegex.Match(name);
         if (!match.Success)
         {
-            logger.LogError($"Variant \"{name}\" does not fit naming standards");
+            logger.LogError($"Variant \"{name}\" couldn't be parsed");
             variant = -2;
             return false;
         }

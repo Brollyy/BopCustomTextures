@@ -2,7 +2,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace BopCustomTextures.Customs;
@@ -10,9 +9,6 @@ namespace BopCustomTextures.Customs;
 /// <summary>
 /// Manages all custom assets using specific manager classes.
 /// </summary>
-/// <param name="logger">Plugin-specific logger</param>
-/// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded</param>
-/// <param name="sceneModTemplate">Mixtape event template for applying scene mods. Updated to include all scenes using scene mods in the current mixtape</param>
 public class CustomManager : BaseCustomManager
 {
     public string version;
@@ -28,6 +24,10 @@ public class CustomManager : BaseCustomManager
     public CustomVariantNameManager variantManager;
     public CustomFileManager fileManager;
 
+    /// <param name="logger">Plugin-specific logger.</param>
+    /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded.</param>
+    /// <param name="sceneModTemplate">Mixtape event template for applying scene mods.</param>
+    /// <param name="textureVariantTemplates">Mixtape event templates concerning custom textures.</param>
     public CustomManager(ILogger logger, string tempPath, MixtapeEventTemplate sceneModTemplate, MixtapeEventTemplate[] textureVariantTemplates) : base(logger)
     {
         variantManager = new CustomVariantNameManager(logger);
@@ -36,7 +36,7 @@ public class CustomManager : BaseCustomManager
         fileManager = new CustomFileManager(logger, tempPath);
     }
 
-    public void ReadDirectory(string path, bool backup)
+    public void ReadDirectory(string path, bool backup, bool upgrade)
     {
         if (!readNecessary)
         {
@@ -46,13 +46,17 @@ public class CustomManager : BaseCustomManager
         hasCustomAssets = GetMixtapeVersion(path);
         if (release > BopCustomTexturesPlugin.LowestRelease)
         {
-            logger.LogEditorError($"Mixtape requires {MyPluginInfo.PLUGIN_GUID} v{version}+, " +
-                $"but you are on v{MyPluginInfo.PLUGIN_VERSION}. You may have to update {MyPluginInfo.PLUGIN_GUID} to play properly.");
+            logger.LogOutdatedPlugin(
+                $"Mixtape requires {MyPluginInfo.PLUGIN_GUID} v{version}+, " +
+                $"but you are on v{MyPluginInfo.PLUGIN_VERSION}. You may have to update {MyPluginInfo.PLUGIN_GUID} to play properly."
+            );
         }
-        else if (release < BopCustomTexturesPlugin.LowestRelease)
+        else if (release < BopCustomTexturesPlugin.LowestRelease && backup && upgrade)
         {
-            logger.LogEditorWarning($"Mixtape was made for {MyPluginInfo.PLUGIN_GUID} v{version}, " +
-                $"while you are on v{MyPluginInfo.PLUGIN_VERSION}. Save this mixtape in the editor to update its version!");
+            logger.LogUpgradeMixtape(
+                $"Mixtape was made for {MyPluginInfo.PLUGIN_GUID} v{version}, " +
+                $"while you are on v{MyPluginInfo.PLUGIN_VERSION}. Save this mixtape in the editor to update its version!"
+            );
         }
 
         int filesLoaded = 0;
@@ -82,11 +86,12 @@ public class CustomManager : BaseCustomManager
         if (filesLoaded > 0)
         {
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
-            if (!hasCustomAssets)
+            if (!hasCustomAssets && backup)
             {
-                logger.LogEditorWarning("This mixtape with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
+                logger.LogUpgradeMixtape(
+                    "This mixtape with custom assets is missing a \"BopCustomTextues.json\" file specifying version. " +
                     "Save this mixtape in the editor to add a \"BopCustomTextures.json\" file automatically!"
-                    );
+                );
                 hasCustomAssets = true;
             }
         }
@@ -98,13 +103,13 @@ public class CustomManager : BaseCustomManager
         textureManager.UpdateEventTemplates();
     }
 
-    public void WriteDirectory(string path)
+    public void WriteDirectory(string path, bool upgrade)
     {
         if (hasCustomAssets)
         {
             logger.LogInfo("Saving with custom files");
             fileManager.WriteDirectory(path);
-            WriteMixtapeVersion(path);
+            WriteMixtapeVersion(path, upgrade);
         };
     }
 
@@ -226,18 +231,16 @@ public class CustomManager : BaseCustomManager
         return true;
     }
 
-    public void WriteMixtapeVersion(string path)
+    public void WriteMixtapeVersion(string path, bool upgrade)
     {
         var jobj = new JObject();
-        jobj["version"] = new JValue(BopCustomTexturesPlugin.LowestVersion);
-        jobj["release"] = new JValue(BopCustomTexturesPlugin.LowestRelease);
+        jobj["version"] = new JValue(upgrade ? BopCustomTexturesPlugin.LowestVersion : version);
+        jobj["release"] = new JValue(upgrade ? BopCustomTexturesPlugin.LowestRelease : release);
 
         try
         {
-            using (StreamWriter outputFile = new StreamWriter(Path.Combine(path, $"{MyPluginInfo.PLUGIN_GUID}.json")))
-            {
-                outputFile.Write(JsonConvert.SerializeObject(jobj));
-            }
+            using StreamWriter outputFile = new StreamWriter(Path.Combine(path, $"{MyPluginInfo.PLUGIN_GUID}.json"));
+            outputFile.Write(JsonConvert.SerializeObject(jobj));
         } 
         catch (Exception e)
         {

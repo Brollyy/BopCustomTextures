@@ -1,9 +1,12 @@
-﻿using BopCustomTextures.Customs;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace BopCustomTextures.SceneMods;
 
+/// <summary>
+/// Wrapper for MGameObject with reference to actual GameObject.
+/// </summary>
+/// <param name="mobj">MGameObject describing modifications to make to the GameObject.</param>
+/// <param name="obj">GameObject to modify.</param>
 public class MGameObjectResolved(MGameObject mobj, GameObject obj)
 {
     public MGameObject mobj = mobj;

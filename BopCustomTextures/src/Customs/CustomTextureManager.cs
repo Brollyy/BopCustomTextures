@@ -1,32 +1,81 @@
-﻿using Unity.Collections;
+﻿using BopCustomTextures.Scripts;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.U2D;
-using BopCustomTextures.Scripts;
 using UnityEngine.Rendering;
 using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using ILogger = BopCustomTextures.Logging.ILogger;
-using System.Linq;
 
 namespace BopCustomTextures.Customs;
 
 /// <summary>
 /// Manages custom textures, including loading them from source files and applying them when the mixtape is played.
 /// </summary>
-/// <param name="logger">Plugin-specific logger</param>
+/// <param name="logger">Plugin-specific logger.</param>
+/// <param name="variantManager">Used for mapping custom texture variant external names to internal indices. Shared with CustomJsonInitializer.</param>
+/// <param name="mixtapeEventTemplates">BopCustomTexture mixtape event templates concerning custom textures.</param>
 public class CustomTextureManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate[] mixtapeEventTemplates) : BaseCustomManager(logger)
 {
+    /// <summary>
+    /// BopCustomTexture mixtape event templates concerning custom textures. 
+    /// Updated to only include scenes with custom textures as options in their "scene" parameters.
+    /// </summary>
     public MixtapeEventTemplate[] mixtapeEventTemplates = mixtapeEventTemplates;
+
+    /// <summary>
+    /// Img files for altas textures.
+    /// </summary>
     public readonly Dictionary<SceneKey, Dictionary<int, Dictionary<int, Texture2D>>> AtlasTextures = [];
+    
+    /// <summary>
+    /// Img files for seperate textures.
+    /// </summary>
     public readonly Dictionary<SceneKey, Dictionary<string, Dictionary<int, Texture2D>>> SeperateTextures = [];
+
+    /// <summary>
+    /// List of all seperate textures that haven't had sprite generated for them.
+    /// Necessary as some sprites aren't atlas packed and thus cannot have their game identified from them.
+    /// Said sprites are covered by iterating through this list and finding matches by name.
+    /// </summary>
     public readonly Dictionary<SceneKey, Dictionary<Texture2D, (string, int)>> SeperateTexturesNotInited = [];
+
+    /// <summary>
+    /// List of games that have been loaded at some point, and thus have generated custom their sprites.
+    /// </summary>
     public readonly HashSet<SceneKey> SpritesInited = [];
+
+    /// <summary>
+    /// Mapping of vanilla sprites to custom sprites. Maps by 'Original Texture Object' -> 'Original Sprite Name' 
+    /// because just mapping just by Original Sprite object didn't work when I tried it.
+    /// </summary>
     public readonly Dictionary<Texture2D, Dictionary<string, Dictionary<int, Sprite>>> SpriteMaps = [];
+
+    /// <summary>
+    /// List of all custom sprites. Necessary to avoid generating custom sprites based on them.
+    /// </summary>
     public readonly HashSet<Sprite> CustomSprites = [];
+
+    /// <summary>
+    /// Maps a vanilla texture to its scenekey and sprite atlas index if a sprite atlas texture.
+    /// For sprite atlas textures this can be solely determined by name, but otherwise it has to be determined via a name matching search.
+    /// </summary>
     public readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
+
+    /// <summary>
+    /// List of variants active per scene. Kind of like a layer system: gameobjects will use sprites from the last variant in 
+    /// the list unless said variant doesn't have a sprite, iterating backwards until a sprite can be found.
+    /// If one is never found, the vanilla sprite is used.
+    /// </summary>
     public readonly Dictionary<SceneKey, List<int>> Variants = [];
+
+    /// <summary>
+    /// Used to map external custom texture variant names to their internal indices. Shared with CustomJsonInitializer.
+    /// </summary>
     public CustomVariantNameManager VariantManager = variantManager;
+
     public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[^\w\\/]*(\w+)?[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
