@@ -1,5 +1,6 @@
-﻿using BopCustomTextures.EventTemplates;
+﻿using BopCustomTextures.Config;
 using BopCustomTextures.Logging;
+using BopCustomTextures.EventTemplates;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -46,7 +47,7 @@ public class CustomManager : BaseCustomManager
         this.entities = entities;
     }
 
-    public void ReadDirectory(string path, bool backup, bool upgrade, DisplayEventTemplates displayEventTemplates, int eventTemplatesIndex)
+    public void ReadDirectory(string path, bool backup, bool upgrade, Display displayEventTemplates, int eventTemplatesIndex)
     {
         if (!readNecessary)
         {
@@ -122,7 +123,7 @@ public class CustomManager : BaseCustomManager
         };
     }
 
-    public void ResetAll(DisplayEventTemplates displayEventTemplates, int eventTemplatesIndex)
+    public void ResetAll(Display displayEventTemplates, int eventTemplatesIndex)
     {
         sceneManager.UnloadCustomScenes();
         textureManager.UnloadCustomTextures();
@@ -135,7 +136,7 @@ public class CustomManager : BaseCustomManager
         UpdateEventTemplates(displayEventTemplates, eventTemplatesIndex);
     }
 
-    public void ResetIfNecessary(string path, DisplayEventTemplates displayEventTemplates, int eventTemplatesIndex)
+    public void ResetIfNecessary(string path, Display displayEventTemplates, int eventTemplatesIndex)
     {
         var modified = File.GetLastWriteTime(path);
         if (lastPath != path || lastModified != modified)
@@ -177,7 +178,7 @@ public class CustomManager : BaseCustomManager
         textureManager.PrepareEvents(__instance, entities);
     }
 
-    public void UpdateEventTemplates(DisplayEventTemplates displayEventTemplates, int eventTemplatesIndex)
+    public void UpdateEventTemplates(Display displayEventTemplates, int eventTemplatesIndex)
     {
         bool needsTemplates = 
             sceneManager.UpdateEventTemplates() |
@@ -185,10 +186,10 @@ public class CustomManager : BaseCustomManager
 
         switch (displayEventTemplates)
         {
-            case DisplayEventTemplates.Never:
+            case Display.Never:
                 entities.Remove(MyPluginInfo.PLUGIN_GUID);
                 break;
-            case DisplayEventTemplates.WhenActive:
+            case Display.WhenActive:
                 if (needsTemplates)
                 {
                     AddEventTemplates(eventTemplatesIndex);
@@ -198,7 +199,7 @@ public class CustomManager : BaseCustomManager
                     entities.Remove(MyPluginInfo.PLUGIN_GUID);
                 }
                 break;
-            case DisplayEventTemplates.Always:
+            case Display.Always:
                 AddEventTemplates(eventTemplatesIndex);
                 break;
         }

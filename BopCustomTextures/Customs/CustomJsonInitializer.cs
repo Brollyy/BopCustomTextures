@@ -17,7 +17,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
 {
     private readonly Dictionary<string, Material> Materials = [];
     private readonly Dictionary<string, Material> ShaderMaterials = [];
-    private CustomVariantNameManager VariantManager = variantManager;
+    private readonly CustomVariantNameManager VariantManager = variantManager;
 
     public MGameObject InitGameObject(JObject jobj, SceneKey scene, string name = "", bool isVolatile = false)
     {

@@ -1,4 +1,5 @@
-﻿using BopCustomTextures.Customs;
+﻿using BopCustomTextures.Config;
+using BopCustomTextures.Customs;
 using BopCustomTextures.Logging;
 using BopCustomTextures.EventTemplates;
 using BepInEx;
@@ -41,7 +42,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
 
     private static ConfigEntry<bool> saveCustomFiles;
     private static ConfigEntry<bool> upgradeOldMixtapes;
-    private static ConfigEntry<DisplayEventTemplates> displayEventTemplates;
+    private static ConfigEntry<Display> displayEventTemplates;
     private static ConfigEntry<int> eventTemplatesIndex;
 
     private static ConfigEntry<LogLevel> logOutdatedPlugin;
@@ -60,66 +61,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
         Logger = BepInEx.Logging.Logger.CreateLogSource(LoggerName);
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
-        // Config loading
-        saveCustomFiles = Config.Bind("Editor",
-            "SaveCustomFiles",
-            true,
-            "When opening a modded mixtape in the editor, save these files whenever the mixtape is saved");
-
-        upgradeOldMixtapes = Config.Bind("Editor",
-            "UpgradeOldMixtapes",
-            true,
-            "When opening a modded mixtape for an older version of the plugin in the editor, " +
-            "upgrade the mixtape version to the current one when saving.");
-
-        displayEventTemplates = Config.Bind("Editor",
-            "DisplayEventTemplates",
-            DisplayEventTemplates.WhenActive,
-            "When to display mixtape events catagory \"Bop Custom Textures\".");
-
-        eventTemplatesIndex = Config.Bind("Editor",
-            "EventTemplatesIndex",
-            4,
-            "Position in mixtape event catagories list to display \"Bop Custom Textures\" at. " +
-            "Values lower than 1 will put catagory at end of list.");
-
-
-        logOutdatedPlugin = Config.Bind("Logging",
-            "logOutdatedPlugin",
-            LogLevel.Error | LogLevel.MixtapeEditor,
-            "Log level for message indicating BopCustomTextures needs to be updated to play a mixtape");
-
-        logUpgradeMixtape = Config.Bind("Logging",
-            "LogUpgradeMixtape",
-            LogLevel.Warning | LogLevel.MixtapeEditor,
-            "Log level for messaage reminding user to save a mixtape to add/upgrade its BopCustomTextures.json file");
-
-
-        logFileLoading = UpgradeOrBind("Logging", "Logging.Debugging",
-            "LogFileLoading",
-            LogLevel.Debug,
-            "Log level for verbose file loading of custom files in .bop archives");
-
-        logUnloading = UpgradeOrBind("Logging", "Logging.Debugging",
-            "LogUnloading",
-            LogLevel.Debug,
-            "Log level for verbose custom asset unloading");
-
-        logSeperateTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
-            "LogSeperateTextureSprites",
-            LogLevel.Debug,
-            "Log level for verbose custom sprite creation from seperate textures");
-
-        logAtlasTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
-            "LogAtlasTextureSprites",
-            LogLevel.Debug,
-            "Log level for verbose custom sprite creation from atlas textures");
-
-
-        logSceneIndices = UpgradeOrBind("Logging", "Logging.Modding",
-            "LogSceneIndices",
-            LogLevel.None,
-            "Log level for vanilla scene loading, including scene name + build index (for locating level and sharedassets files)");
+        LoadConfigs();
 
         var customlogger = new ManualLogSourceCustom(Logger,
             MyPluginInfo.PLUGIN_NAME,
@@ -137,7 +79,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             BopCustomTexturesEventTemplates.sceneModTemplate,
             BopCustomTexturesEventTemplates.textureVariantTemplates,
             MixtapeEventTemplates.entities);
-        if (displayEventTemplates.Value == DisplayEventTemplates.Always)
+        if (displayEventTemplates.Value == Display.Always)
         {
             Manager.AddEventTemplates(eventTemplatesIndex.Value);
         }
@@ -157,6 +99,71 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
                 customlogger.Log(logSceneIndices.Value, $"{scene.buildIndex} - {scene.name}");
             };
         }
+    }
+
+    private void LoadConfigs()
+    {
+        saveCustomFiles = Config.Bind("Editor",
+            "SaveCustomFiles",
+            true,
+            "When opening a modded mixtape in the editor, save these files whenever the mixtape is saved");
+
+        upgradeOldMixtapes = Config.Bind("Editor",
+            "UpgradeOldMixtapes",
+            true,
+            "When opening a modded mixtape for an older version of the plugin in the editor, " +
+            "upgrade the mixtape version to the current one when saving.");
+
+        displayEventTemplates = Config.Bind("Editor.Display",
+            "DisplayEventTemplates",
+            Display.Always,
+            "When to display mixtape events catagory \"Bop Custom Textures\".\n" +
+            "(Note: options besides \"Always\" can be buggy when attempting to work with a modded mixtape.)");
+
+        eventTemplatesIndex = Config.Bind("Editor.Display",
+            "EventTemplatesIndex",
+            4,
+            "Position in mixtape event catagories list to display \"Bop Custom Textures\" at. " +
+            "Values lower than 1 will put catagory at end of list.\n" +
+            "(Note: position 0 unsupported as editor is hardcoded to only support category \"Global\" there.)");
+
+
+        logOutdatedPlugin = Config.Bind("Logging",
+            "logOutdatedPlugin",
+            LogLevel.Error | LogLevel.MixtapeEditor,
+            "Log level for message indicating BopCustomTextures needs to be updated to play a mixtape.");
+
+        logUpgradeMixtape = Config.Bind("Logging",
+            "LogUpgradeMixtape",
+            LogLevel.Warning | LogLevel.MixtapeEditor,
+            "Log level for messaage reminding user to save a mixtape to add/upgrade its BopCustomTextures.json file.");
+
+
+        logFileLoading = UpgradeOrBind("Logging", "Logging.Debugging",
+            "LogFileLoading",
+            LogLevel.Debug,
+            "Log level for verbose file loading of custom files in .bop archives.");
+
+        logUnloading = UpgradeOrBind("Logging", "Logging.Debugging",
+            "LogUnloading",
+            LogLevel.Debug,
+            "Log level for verbose custom asset unloading");
+
+        logSeperateTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
+            "LogSeperateTextureSprites",
+            LogLevel.Debug,
+            "Log level for verbose custom sprite creation from seperate textures.");
+
+        logAtlasTextureSprites = UpgradeOrBind("Logging", "Logging.Debugging",
+            "LogAtlasTextureSprites",
+            LogLevel.Debug,
+            "Log level for verbose custom sprite creation from atlas textures.");
+
+
+        logSceneIndices = UpgradeOrBind("Logging", "Logging.Modding",
+            "LogSceneIndices",
+            LogLevel.None,
+            "Log level for vanilla scene loading, including scene name + build index. (for locating level and sharedassets files)");
     }
 
     [HarmonyPatch(typeof(BopMixtapeSerializerV0), "ReadDirectory")]

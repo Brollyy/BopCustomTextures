@@ -12,7 +12,8 @@ namespace BopCustomTextures.Customs;
 public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger)
 {
     public readonly Dictionary<SceneKey, Dictionary<string, int>> VariantMaps = [];
-    public static readonly Regex VariantRegex = new Regex(@"(?:^(\w+)[^\w\\/]+|^)(\w+)$");
+    public static readonly Regex VariantRegex = new Regex(@"(?:^\s*""?\s*(\w+)[^\w\\/]+|^\s*""?\s*)(\w+)\s*""?\s*$", RegexOptions.RightToLeft | RegexOptions.Compiled);
+    public static readonly Regex VariantsRegex = new Regex(@"\s*""?(\w*)""?\s*(?:,|$)", RegexOptions.Compiled);
     
     public void UnloadCustomTextureVariants()
     {
@@ -51,6 +52,46 @@ public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger
         logger.LogError($"Variant \"{match.Groups[2].Value}\" doesn't exist in scene {scene}");
         variant = -1;
         return false;
+    }
+
+    public bool TryGetVariants(SceneKey scene, string names, out List<int> variants)
+    {
+        var matches = VariantsRegex.Matches(names);
+        if (matches.Count < 1)
+        {
+            logger.LogError($"Variants \"{names}\" couldn't be parsed");
+            variants = null;
+            return false;
+        }
+        else if (matches.Count == 1)
+        {
+            if (!TryGetVariant(scene, matches[0].Groups[1].Value.Trim(), out var variant))
+            {
+                variants = null;
+                return false;
+            }
+            variants = [variant];
+            return true;
+        } 
+        else
+        {
+            var result = new List<int>();
+            for (int i = 0; i < matches.Count - 1; i++)
+            {
+                if (TryGetVariant(scene, matches[0].Groups[1].Value.Trim(), out var variant))
+                {
+                    result.Add(variant);
+                }
+            }
+            if (result.Count < 1)
+            {
+                logger.LogError($"Variants \"{names}\" contained no valid variants");
+                variants = null;
+                return false;
+            }
+            variants = result;
+            return true;
+        }
     }
 
     public int GetOrAddVariant(SceneKey scene, string name)

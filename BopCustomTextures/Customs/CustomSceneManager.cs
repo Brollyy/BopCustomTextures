@@ -21,8 +21,8 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
     public MixtapeEventTemplate sceneModTemplate = sceneModTemplate;
     public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger, variantManager);
     public readonly Dictionary<SceneKey, Dictionary<string, MGameObject>> CustomScenes = [];
-    public static readonly Regex PathRegex = new Regex(@"[\\/](?:level|scene)s?$", RegexOptions.IgnoreCase);
-    public static readonly Regex FileRegex = new Regex(@"(\w+).jsonc?$", RegexOptions.IgnoreCase);
+    public static readonly Regex PathRegex = new Regex(@"[\\/](?:level|scene)s?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex FileRegex = new Regex(@"(\w+).jsonc?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public static bool IsCustomSceneDirectory(string path)
     {
@@ -82,7 +82,7 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
         {
             logger.LogWarning($"Duplicate custom scene definition for scene {scene}");
         }
-        CustomScenes[scene] = new Dictionary<string, MGameObject>();
+        CustomScenes[scene] = [];
         bool isSimple = true;
         if (release >= 2)
         {

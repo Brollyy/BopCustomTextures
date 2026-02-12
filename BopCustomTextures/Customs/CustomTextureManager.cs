@@ -76,12 +76,12 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
     /// </summary>
     public CustomVariantNameManager VariantManager = variantManager;
 
-    public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase);
-    public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[^\w\\/]*(\w+)?[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase);
-    public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
-    public static readonly Regex FileRegexSeperate = new Regex(@"^(\w+)");
-    public static readonly Regex SceneAndSpriteAtlasIndexRegex = new Regex(@"^sactx-(\d+)-\d+x\d+-DXT5\|BC3-_(\w+)Atlas");
-    public static readonly Regex MixtapeEventRegex = new Regex(@"^(\w*)/(\w*) texture variant$");
+    public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[^\w\\/]*(\w+)?[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex FileRegexSeperate = new Regex(@"^(\w+)", RegexOptions.Compiled);
+    public static readonly Regex SceneAndSpriteAtlasIndexRegex = new Regex(@"^sactx-(\d+)-\d+x\d+-DXT5\|BC3-_(\w+)Atlas", RegexOptions.Compiled);
+    public static readonly Regex MixtapeEventRegex = new Regex(@"^(\w*)/(\w*) texture variant$", RegexOptions.Compiled);
 
     public static bool IsCustomTextureDirectory(string path)
     {
@@ -332,21 +332,9 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
                 sceneSpriteSwappers[scene] = spriteSwappers;
             }
 
-            var variantStrings = entity.GetString("variant").Split([',']);
-            var variants = new List<int>();
-            foreach (var strWhitespace in variantStrings)
+            if (!VariantManager.TryGetVariants(scene, entity.GetString("variant"), out var variants))
             {
-                var str = strWhitespace.Trim();
-                if (!VariantManager.TryGetVariant(scene, str, out int variant))
-                {
-                    continue;
-                }
-                if (variants.Contains(variant))
-                {
-                    logger.LogWarning($"Variant \"{str}\" for scene {scene} is listed multiple times");
-                    continue;
-                }
-                variants.Add(variant);
+                continue;
             }
             var destVariants = Variants[scene];
 

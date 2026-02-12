@@ -24,7 +24,7 @@ public class BaseCustomManager(ILogger logger)
     public static readonly AccessTools.FieldRef<MixtapeLoaderCustom, Entity[]> entitiesRef =
         AccessTools.FieldRefAccess<MixtapeLoaderCustom, Entity[]>("entities");
 
-    private static readonly Regex SceneKeyRegex = new Regex("^(.*?)(?:Custom|Mixtape)?$");
+    private static readonly Regex SceneKeyRegex = new Regex("^(.*?)(?:Custom|Mixtape)?$", RegexOptions.Compiled);
 
     protected static SceneKey ToSceneKeyOrInvalid(string name)
     {
