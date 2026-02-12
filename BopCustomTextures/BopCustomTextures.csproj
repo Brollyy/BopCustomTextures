@@ -14,7 +14,6 @@
 		</RestoreAdditionalProjectSources>
 		<RootNamespace>BopCustomTextures</RootNamespace>
 		<RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
-		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -31,15 +30,11 @@
 
 	<ItemGroup>
 		<Reference Include="Assembly-CSharp">
-			<HintPath>.\lib\Assembly-CSharp.dll</HintPath>
+			<HintPath>..\lib\Assembly-CSharp.dll</HintPath>
 		</Reference>
 		<Reference Include="Unity.TextMeshPro">
-			<HintPath>.\lib\Unity.TextMeshPro.dll</HintPath>
+			<HintPath>..\lib\Unity.TextMeshPro.dll</HintPath>
 		</Reference>
-	</ItemGroup>
-
-	<ItemGroup>
-		<Compile Include="src\**\*.cs" />
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="$(PostBuildCopyDestination) != ''">
