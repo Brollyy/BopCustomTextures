@@ -2,9 +2,9 @@
 using UnityEngine;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
-using System;
 using System.Linq;
 using ILogger = BopCustomTextures.Logging.ILogger;
+using System.Globalization;
 
 namespace BopCustomTextures.Customs;
 
@@ -91,6 +91,8 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                 return InitTransform(jcomponent);
             case "SpriteRenderer":
                 return InitSpriteRenderer(jcomponent);
+            case "Image":
+                return InitImage(jcomponent);
             case "ParallaxObjectScript":
                 return InitParallaxObjectScript(jcomponent);
             case "CustomSpriteSwapper":
@@ -128,13 +130,23 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         return mspriteRenderer;
     }
 
+    public MImage InitImage(JObject jimage)
+    {
+        var mimage = new MImage();
+        Material mat;
+        if (TryGetJMaterial(jimage, "Material", out mat) ||
+            TryGetJShader(jimage, "Shader", out mat))
+            mimage.material = mat;
+        return mimage;
+    }
+
     // BITS & BOPS SCRIPTS //
     public MParallaxObjectScript InitParallaxObjectScript(JObject jparallaxObjectScript)
     {
         var mparallaxObjectScript = new MParallaxObjectScript();
-        JValue jval;
-        if (TryGetJValue(jparallaxObjectScript, "ParallaxScale", JTokenType.Float, out jval)) mparallaxObjectScript.parallaxScale = (float)jval;
-        if (TryGetJValue(jparallaxObjectScript, "LoopDistance", JTokenType.Float, out jval)) mparallaxObjectScript.loopDistance = (float)jval;
+        float jfloat;
+        if (TryGetJFloat(jparallaxObjectScript, "ParallaxScale", out jfloat)) mparallaxObjectScript.parallaxScale = jfloat;
+        if (TryGetJFloat(jparallaxObjectScript, "LoopDistance", out jfloat)) mparallaxObjectScript.loopDistance = jfloat;
         return mparallaxObjectScript;
     }
 
@@ -230,18 +242,18 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
     public Vector2 InitCustomVector2(JObject jvector2)
     {
-        JValue jval;
+        float jfloat;
         return new Vector2(
-            TryGetJValue(jvector2, "x", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector2, "y", JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jvector2, "x", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector2, "y", out jfloat) ? jfloat : float.NaN
         );
     }
     public Vector2 InitCustomVector2(JArray jvector2)
     {
-        JValue jval;
+        float jfloat;
         return new Vector2(
-            TryGetJValue(jvector2, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector2, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jvector2, 0, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector2, 1, out jfloat) ? jfloat : float.NaN
         );
     }
 
@@ -267,20 +279,20 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
     public Vector3 InitCustomVector3(JObject jvector3)
     {
-        JValue jval;
+        float jfloat;
         return new Vector3(
-            TryGetJValue(jvector3, "x", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector3, "y", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector3, "z", JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jvector3, "x", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector3, "y", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector3, "z", out jfloat) ? jfloat : float.NaN
         );
     }
     public Vector3 InitCustomVector3(JArray jvector3)
     {
-        JValue jval;
+        float jfloat;
         return new Vector3(
-            TryGetJValue(jvector3, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector3, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jvector3, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jvector3, 0, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector3, 1, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jvector3, 2, out jfloat) ? jfloat : float.NaN
         );
     }
 
@@ -300,10 +312,11 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                 eulerAngles = InitCustomVector3((JArray)jvector3);
                 return true;
             case JTokenType.Float:
+            case JTokenType.Integer:
                 eulerAngles = new Vector3(float.NaN, (float)jvector3, float.NaN);
                 return true;
         }
-        logger.LogWarning($"JSON eulerAngles \"{key}\" is a {jvector3.Type} when it should be an object, array, or float");
+        logger.LogWarning($"JSON eulerAngles \"{key}\" is a {jvector3.Type} when it should be an object, array, float, or integer");
         eulerAngles = default;
         return false;
     }
@@ -330,22 +343,22 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
     public Quaternion InitCustomQuaternion(JObject jquaternion)
     {
-        JValue jval;
+        float jfloat;
         return new Quaternion(
-            TryGetJValue(jquaternion, "x", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, "y", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, "z", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, "w", JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jquaternion, "x", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, "y", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, "z", out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, "w", out jfloat) ? jfloat : float.NaN
         );
     }
     public Quaternion InitCustomQuaternion(JArray jquaternion)
     {
-        JValue jval;
+        float jfloat;
         return new Quaternion(
-            TryGetJValue(jquaternion, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jquaternion, 3, JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJFloat(jquaternion, 0, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, 1, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, 2, out jfloat) ? jfloat : float.NaN,
+            TryGetJFloat(jquaternion, 3, out jfloat) ? jfloat : float.NaN
         );
     }
 
@@ -374,35 +387,103 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
     public Color InitCustomColor(JObject jcolor)
     {
-        JValue jval;
+        float jfloat;
         return new Color(
-            TryGetJValue(jcolor, "r", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, "g", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, "b", JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, "a", JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJColorChannel(jcolor, "r", out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, "g", out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, "b", out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, "a", out jfloat) ? jfloat : float.NaN
         );
     }
     public Color InitCustomColor(JArray jcolor)
     {
-        JValue jval;
+        float jfloat;
         return new Color(
-            TryGetJValue(jcolor, 0, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, 1, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, 2, JTokenType.Float, out jval) ? (float)jval : float.NaN,
-            TryGetJValue(jcolor, 3, JTokenType.Float, out jval) ? (float)jval : float.NaN
+            TryGetJColorChannel(jcolor, 0, out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, 1, out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, 2, out jfloat) ? jfloat : float.NaN,
+            TryGetJColorChannel(jcolor, 3, out jfloat) ? jfloat : float.NaN
         );
     }
     public Color InitCustomColor(string str)
     {
         str = str.TrimStart('#');
-        int rgb = Convert.ToInt32(str, 16);
         Color jcolor = new Color(float.NaN, float.NaN, float.NaN, float.NaN);
-        for (int i = 0; i < str.Length / 2 && i < 4; i++)
+        if (!int.TryParse(str, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
         {
-            jcolor[i] = (rgb & 0xFF) / 255.0f;
-            rgb >>= 8;
+            logger.LogWarning($"JSON color string \"{str}\" couldn't be parsed as as color");
+        }
+        else
+        {
+            for (int i = 0; i < str.Length / 2 && i < 4; i++)
+            {
+                jcolor[i] = (rgb & 0xFF) / 255.0f;
+                rgb >>= 8;
+            }
         }
         return jcolor;
+    }
+
+    public bool TryGetJMaterial(JObject jobj, string key, out Material mat)
+    {
+        if (!TryGetJValue(jobj, key, JTokenType.String, out var jmatName))
+        {
+            mat = null;
+            return false;
+        }
+        string matName = (string)jmatName;
+        if (!Materials.ContainsKey(matName))
+        {
+            Material found = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(s => s.name == matName) ??
+                Resources.Load<Material>($"Materials/{matName}");
+            if (!found)
+            {
+                logger.LogWarning($"JSON material \"{matName}\" could not be found");
+                Materials[matName] = null;
+            }
+            else
+            {
+                Materials[matName] = found;
+            }
+        }
+
+        mat = Materials[matName];
+        if (!mat)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    public bool TryGetJShader(JObject jobj, string key, out Material mat)
+    {
+        if (!TryGetJValue(jobj, key, JTokenType.String, out var jshaderName))
+        {
+            mat = null;
+            return false;
+        }
+        string shaderName = (string)jshaderName;
+        if (!ShaderMaterials.ContainsKey(shaderName))
+        {
+            Shader found = Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(s => s.name == shaderName) ??
+                           Shader.Find(shaderName);
+            if (!found)
+            {
+                logger.LogWarning($"JSON shader \"{shaderName}\" could not be found");
+                ShaderMaterials[shaderName] = null;
+            }
+            else
+            {
+                ShaderMaterials[shaderName] = new Material(found);
+            }
+        }
+
+        mat = ShaderMaterials[shaderName];
+        if (!mat)
+        {
+            return false;
+        }
+        return true;
     }
 
 
@@ -454,68 +535,81 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         return TryGetJToken(jobj, key, JTokenType.Object, out jvalue);
     }
 
-    public bool TryGetJMaterial(JObject jobj, string key, out Material mat)
+    public bool TryGetJFloat(JObject jobj, string key, out float jfloat)
     {
-        if (!TryGetJValue(jobj, key, JTokenType.String, out var jmatName))
+        if (!jobj.TryGetValue(key, out var jtoken2))
         {
-            mat = null;
+            jfloat = default;
             return false;
         }
-        string matName = (string)jmatName;
-        if (!Materials.ContainsKey(matName))
+        if (jtoken2.Type != JTokenType.Float && jtoken2.Type != JTokenType.Integer)
         {
-            Material found = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(s => s.name == matName);
-            if (!found)
-            {
-                found = Resources.Load<Material>($"Materials/{matName}");
-            }
-            if (!found)
-            {
-                logger.LogWarning($"JSON material \"{matName}\" could not be found");
-                Materials[matName] = null;
-            }
-            else
-            {
-                Materials[matName] = found;
-            }
-        }
-
-        mat = Materials[matName];
-        if (!mat)
-        {
+            logger.LogWarning($"JSON key \"{key}\" is a {jtoken2.Type} when it should be a float or integer");
+            jfloat = default;
             return false;
         }
-        return true;
-        
-    }
-    public bool TryGetJShader(JObject jobj, string key, out Material mat)
-    {
-        if (!TryGetJValue(jobj, key, JTokenType.String, out var jshaderName))
-        {
-            mat = null;
-            return false;
-        }
-        string shaderName = (string)jshaderName;
-        if (!ShaderMaterials.ContainsKey(shaderName))
-        {
-            Shader found = Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(s => s.name == shaderName) ?? 
-                           Resources.Load<Shader>($"Shaders/{shaderName}");
-            if (!found)
-            {
-                logger.LogWarning($"JSON shader \"{shaderName}\" could not be found");
-                ShaderMaterials[shaderName] = null;
-            }
-            else
-            {
-                ShaderMaterials[shaderName] = new Material(found);
-            }
-        }
-
-        mat = ShaderMaterials[shaderName];
-        if (!mat)
-        {
-            return false;
-        }
+        jfloat = (float)jtoken2;
         return true;
     }
+    public bool TryGetJFloat(JArray jarray, int index, out float jfloat)
+    {
+        if (jarray.Count <= index)
+        {
+            jfloat = default;
+            return false;
+        }
+        var jtoken2 = jarray[index];
+        if (jtoken2.Type != JTokenType.Float && jtoken2.Type != JTokenType.Integer)
+        {
+            logger.LogWarning($"JSON index \"{index}\" is a {jtoken2.Type} when it should be a float or integer");
+            jfloat = default;
+            return false;
+        }
+        jfloat = (float)jtoken2;
+        return true;
+    }
+
+    public bool TryGetJColorChannel(JObject jobj, string key, out float jfloat)
+    {
+        if (!jobj.TryGetValue(key, out var jtoken2))
+        {
+            jfloat = default;
+            return false;
+        }
+        switch (jtoken2.Type)
+        {
+            case JTokenType.Float:
+                jfloat = (float)jtoken2;
+                return true;
+            case JTokenType.Integer:
+                jfloat = (float)jtoken2 / 255;
+                return true;
+        }
+        logger.LogWarning($"JSON key \"{key}\" is a {jtoken2.Type} when it should be a float or integer");
+        jfloat = default;
+        return true;
+    }
+    public bool TryGetJColorChannel(JArray jarray, int index, out float jfloat)
+    {
+        if (jarray.Count <= index)
+        {
+            jfloat = default;
+            return false;
+        }
+        var jtoken2 = jarray[index];
+        switch (jtoken2.Type)
+        {
+            case JTokenType.Float:
+                jfloat = (float)jtoken2;
+                return true;
+            case JTokenType.Integer:
+                jfloat = (float)jtoken2 / 255;
+                return true;
+        }
+        logger.LogWarning($"JSON index \"{index}\" is a {jtoken2.Type} when it should be a float or integer");
+        jfloat = default;
+        return true;
+    }
+
+
 }

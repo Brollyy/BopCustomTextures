@@ -34,6 +34,7 @@ public class CustomManager : BaseCustomManager
     /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded.</param>
     /// <param name="sceneModTemplate">Mixtape event template for applying scene mods.</param>
     /// <param name="textureVariantTemplates">Mixtape event templates concerning custom textures.</param>
+    /// <param name="entities">List of all mixtape event catagories and events.</param>
     public CustomManager(ILogger logger, 
         string tempPath, 
         MixtapeEventTemplate sceneModTemplate, 
