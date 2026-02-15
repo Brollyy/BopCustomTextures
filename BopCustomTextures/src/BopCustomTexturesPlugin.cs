@@ -86,6 +86,9 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             GetTempPath()
         );
 
+        // Ensure customTex templates are present before any editor entity deserialization path runs.
+        InjectCustomTexEditorDefinitions();
+
         Harmony.PatchAll();
 
         // Apply hooks to make sure temp files are deleted on program exit
@@ -103,6 +106,13 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
                 Logger.Log(logSceneIndices.Value, $"{scene.buildIndex} - {scene.name}");
             };
         }
+    }
+
+    private static void InjectCustomTexEditorDefinitions()
+    {
+        CustomTexMixtapeEvents.InjectGames(MixtapeEventTemplates.Categories);
+        CustomTexMixtapeEvents.InjectGameEvents(MixtapeEventTemplates.entities);
+        CustomTexMixtapeEvents.InjectAllEvents(MixtapeEventTemplates.AllTemplates);
     }
 
     [HarmonyPatch(typeof(BopMixtapeSerializerV0), "ReadDirectory")]
@@ -155,6 +165,7 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
     {
         static void Prefix(string path)
         {
+            InjectCustomTexEditorDefinitions();
             Manager.ResetIfNecessary(path);
         }
     }
@@ -167,7 +178,57 @@ public class BopCustomTexturesPlugin : BaseUnityPlugin
             Manager.InitScene(__instance, sceneKey);
         }
     }
-
+    [HarmonyPatch(typeof(MixtapeLoaderCustom), "Start")]
+    private static class MixtapeLoaderCustomStartPatch
+    {
+        static void Postfix(MixtapeLoaderCustom __instance)
+        {
+            Manager.eventManager.ScheduleCustomTexEvents(__instance, Manager);
+        }
+    }
+    [HarmonyPatch(typeof(MixtapeLoaderCustom), "OnDisable")]
+    private static class MixtapeLoaderCustomOnDisablePatch
+    {
+        static void Postfix()
+        {
+            Manager.eventManager.UnscheduleCustomTexEvents();
+        }
+    }
+    [HarmonyPatch(typeof(MixtapeEditorScript), "games", MethodType.Getter)]
+    private static class MixtapeEditorScriptGetGamesPatch
+    {
+        static void Postfix(ref System.Collections.Generic.List<string> __result)
+        {
+            CustomTexMixtapeEvents.InjectGames(__result);
+        }
+    }
+    [HarmonyPatch(typeof(MixtapeEditorScript), "gameEvents", MethodType.Getter)]
+    private static class MixtapeEditorScriptGetGameEventsPatch
+    {
+        static void Postfix(ref System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<MixtapeEventTemplate>> __result)
+        {
+            CustomTexMixtapeEvents.InjectGameEvents(__result);
+        }
+    }
+    [HarmonyPatch(typeof(MixtapeEditorScript), "allEvents", MethodType.Getter)]
+    private static class MixtapeEditorScriptGetAllEventsPatch
+    {
+        static void Postfix(ref System.Collections.Generic.Dictionary<string, MixtapeEventTemplate> __result)
+        {
+            CustomTexMixtapeEvents.InjectAllEvents(__result);
+        }
+    }
+    [HarmonyPatch(typeof(MixtapeEditorScript), "GameNameToDisplay")]
+    private static class MixtapeEditorScriptGameNameToDisplayPatch
+    {
+        static void Postfix(string name, ref string __result)
+        {
+            if (string.Equals(name, CustomTexMixtapeEvents.Category, StringComparison.OrdinalIgnoreCase))
+            {
+                __result = "Custom Tex";
+            }
+        }
+    }
     private void OnProcessExit(object sender, EventArgs e)
     {
         Manager.DeleteTempDirectory();

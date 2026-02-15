@@ -161,6 +161,35 @@ For fields with struct types like Vector3, Quaternion, and Color, you make the f
 
 For fields with primitive types like Boolean and Float, you make the field's value a JSON primitive.
 
+### Mixtape Visual Events (MVP)
+`BopCustomTextures` now injects a `customTex` event category into the Mixtape Editor with the following events:
+- `customTex/toggle custom textures` (`enabled`: Boolean)
+- `customTex/set texture pack` (`path`: String)
+- `customTex/set texture override` (`qualifiedPath`: String, `path`: String)
+- `customTex/clear texture override` (`qualifiedPath`: String)
+- `customTex/set scene mod pack` (`path`: String)
+- `customTex/set scene mod override` (`scene`: String, `path`: String)
+- `customTex/clear scene mod override` (`scene`: String)
+
+`path` values are resolved relative to the extracted mixtape root.
+
+Texture pack paths should point to a folder with scene subfolders (same structure as `textures`), for example:
+```txt
+myTexturePack/
+  RockPaperShowdown/
+    hand_rock.png
+```
+
+Scene mod pack paths should point to a folder containing scene JSON files (same structure as `levels`), for example:
+```txt
+myScenePack/
+  RockPaperShowdown.json
+```
+
+`qualifiedPath` for texture overrides uses:
+- Separate sprites: `<scene>/<spriteName>`
+- Atlas textures: `<scene>/sactx-<index>`
+
 #### Finding GameObject Names and Components
 Short of ripping an entire Unity project from Bits & Bops, I recommend using the BepInEx plugin [RuntimeUnityEditor](https://github.com/ManlyMarco/RuntimeUnityEditor) to inspect the GameObject hierarchy of rhythm games.
 

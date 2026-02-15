@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
+using System.Collections.Generic;
 
 namespace BopCustomTextures.Customs;
 
@@ -29,10 +30,19 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
     public string lastPath;
     public DateTime lastModified;
     public bool readNecessary = true;
+    public string loadedMixtapeDirectory;
+    public bool customTexturesEnabled = true;
+    public bool customTexRuntimeDirty = false;
+    public string activeTexturePackPath = "";
+    public string activeSceneModPackPath = "";
+    public readonly Dictionary<string, string> textureOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public readonly Dictionary<string, string> sceneModOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public CustomTexReferenceFrame referenceFrame = new CustomTexReferenceFrame();
 
     public CustomSceneManager sceneManager = new CustomSceneManager(logger);
     public CustomTextureManager textureManager = new CustomTextureManager(logger);
     public CustomFileManager fileManager = new CustomFileManager(logger, tempPath);
+    public CustomTexEventManager eventManager = new CustomTexEventManager(logger);
 
     public void ReadDirectory(string path, bool backup)
     {
@@ -47,26 +57,27 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
             logger.LogEditorError($"Mixtape requires {pluginGUID} v{version}+, but you are on v{latestVersion}. You may have to update {pluginGUID} to play properly.");
         }
 
-        int filesLoaded = 0;
+        loadedMixtapeDirectory = path;
+        customTexturesEnabled = true;
+        activeTexturePackPath = "";
+        activeSceneModPackPath = "";
+        textureOverrides.Clear();
+        sceneModOverrides.Clear();
+        customTexRuntimeDirty = false;
+
         var subpaths = Directory.EnumerateDirectories(path);
         foreach (var subpath in subpaths)
         {
-            var backup2 = false;
-            if (CustomSceneManager.IsCustomSceneDirectory(subpath))
-            {
-                filesLoaded += sceneManager.LocateCustomScenes(subpath, path);
-                backup2 = backup;
-            }
-            else if (CustomTextureManager.IsCustomTextureDirectory(subpath))
-            {
-                filesLoaded += textureManager.LocateCustomTextures(subpath, path);
-                backup2 = backup;
-            }
             if (backup)
             {
                 fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
             }
         }
+        referenceFrame = CustomTexReferenceFrame.Build(loadedMixtapeDirectory, logger);
+        int filesLoaded = textureManager.PreloadReferenceFrame(referenceFrame, loadedMixtapeDirectory)
+            + sceneManager.PreloadReferenceFrame(referenceFrame, loadedMixtapeDirectory);
+        fileManager.SetReferencedTopLevelDirectories(referenceFrame, textureManager.DefaultPackPaths, sceneManager.DefaultPackPaths);
+        RebuildCustomAssets(null, textureStateChanged: true, sceneStateChanged: true);
         if (filesLoaded > 0)
         {
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
@@ -96,13 +107,24 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
 
     public void ResetAll()
     {
+        eventManager.UnscheduleCustomTexEvents();
         sceneManager.UnloadCustomScenes();
         textureManager.UnloadCustomTextures();
+        textureManager.ClearPreloadedTextureCaches();
+        sceneManager.ClearPreloadedSceneCaches();
         fileManager.DeleteTempDirectory();
+        loadedMixtapeDirectory = null;
         lastPath = null;
         lastModified = default;
         hasCustomAssets = false;
         readNecessary = true;
+        customTexturesEnabled = true;
+        activeTexturePackPath = "";
+        activeSceneModPackPath = "";
+        textureOverrides.Clear();
+        sceneModOverrides.Clear();
+        customTexRuntimeDirty = false;
+        referenceFrame = new CustomTexReferenceFrame();
     }
 
     public void ResetIfNecessary(string path)
@@ -126,6 +148,21 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
         fileManager.DeleteTempDirectory();
     }
 
+    public void ResetCustomTexEventRuntimeState(MixtapeLoaderCustom __instance)
+    {
+        if (!customTexRuntimeDirty)
+        {
+            return;
+        }
+        customTexturesEnabled = true;
+        activeTexturePackPath = "";
+        activeSceneModPackPath = "";
+        textureOverrides.Clear();
+        sceneModOverrides.Clear();
+        RebuildCustomAssets(__instance, textureStateChanged: true, sceneStateChanged: true);
+        customTexRuntimeDirty = false;
+    }
+
     public void InitScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
     {
         if (cancelLoadRef(__instance))
@@ -133,7 +170,64 @@ public class CustomManager(ILogger logger, string pluginGUID, string pluginVersi
             return;
         }
         sceneManager.InitCustomScene(__instance, sceneKey);
-        textureManager.InitCustomTextures(__instance, sceneKey);
+        if (customTexturesEnabled)
+        {
+            textureManager.InitCustomTextures(__instance, sceneKey);
+        }
+    }
+
+    public int RebuildCustomAssets(
+        MixtapeLoaderCustom __instance,
+        bool textureStateChanged = true,
+        bool sceneStateChanged = true
+    )
+    {
+        if (__instance != null && textureStateChanged)
+        {
+            // Restore displayed sprites before clearing runtime custom sprite maps.
+            textureManager.RestoreOriginalSpritesOnLoadedRoots(__instance);
+        }
+        if (sceneStateChanged)
+        {
+            sceneManager.UnloadCustomScenes();
+        }
+        if (textureStateChanged)
+        {
+            textureManager.UnloadCustomTextures(false);
+        }
+
+        int filesLoaded = 0;
+        if (textureStateChanged && customTexturesEnabled)
+        {
+            filesLoaded += textureManager.ApplyRuntimeSelection(activeTexturePackPath, textureOverrides, loadedMixtapeDirectory);
+        }
+        if (sceneStateChanged)
+        {
+            filesLoaded += sceneManager.ApplyRuntimeSelection(activeSceneModPackPath, sceneModOverrides, loadedMixtapeDirectory);
+        }
+
+        if (__instance != null)
+        {
+            ApplyCustomAssetsToLoadedScenes(__instance);
+        }
+        return filesLoaded;
+    }
+
+    public void ApplyCustomAssetsToLoadedScenes(MixtapeLoaderCustom __instance)
+    {
+        var rootObjects = rootObjectsRef(__instance);
+        foreach (var rootObjectPair in rootObjects)
+        {
+            SceneKey scene = rootObjectPair.Key;
+            if (sceneManager.CustomScenes.ContainsKey(scene))
+            {
+                sceneManager.InitCustomScene(__instance, scene);
+            }
+            if (customTexturesEnabled)
+            {
+                textureManager.InitCustomTextures(__instance, scene);
+            }
+        }
     }
 
     public bool GetMixtapeVersion(string path)

@@ -1,4 +1,5 @@
 ﻿using BopCustomTextures.Logging;
+using System.Collections.Generic;
 using System.IO;
 
 namespace BopCustomTextures.Customs;
@@ -12,6 +13,7 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
 {
     public string tempPath = tempPath;
     public static FileStream tempLock = null;
+    public readonly HashSet<string> referencedTopLevelDirectories = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
     public bool WriteDirectory(string path)
     {
@@ -20,9 +22,8 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
             var subpaths = Directory.EnumerateDirectories(tempPath);
             foreach (var subpath in subpaths)
             {
-                if (CustomSceneManager.IsCustomSceneDirectory(subpath) ||
-                    CustomTextureManager.IsCustomTextureDirectory(subpath)
-                    )
+                string topLevelName = Path.GetFileName(subpath);
+                if (referencedTopLevelDirectories.Contains(topLevelName))
                 {
                     CopyDirectory(subpath, Path.Combine(path, subpath.Substring(tempPath.Length + 1)));
                 }
@@ -30,6 +31,72 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
             return true;
         }
         return false;
+    }
+
+    public void SetReferencedTopLevelDirectories(
+        CustomTexReferenceFrame frame,
+        IEnumerable<string> defaultTexturePackPaths,
+        IEnumerable<string> defaultScenePackPaths
+    )
+    {
+        referencedTopLevelDirectories.Clear();
+
+        foreach (var path in defaultTexturePackPaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+        foreach (var path in defaultScenePackPaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+
+        foreach (var path in frame.TexturePackPaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+        foreach (var path in frame.ScenePackPaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+        foreach (var path in frame.TextureOverridePaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+        foreach (var path in frame.SceneOverridePaths)
+        {
+            AddTopLevelDirectoryReference(path, referencedTopLevelDirectories);
+        }
+    }
+
+    public static void AddTopLevelDirectoryReference(string referencedPath, HashSet<string> referencedDirectories)
+    {
+        if (string.IsNullOrWhiteSpace(referencedPath))
+        {
+            return;
+        }
+        if (Path.IsPathRooted(referencedPath))
+        {
+            return;
+        }
+
+        string normalized = referencedPath.Replace('\\', '/').Trim();
+        int slashIndex = normalized.IndexOf('/');
+        if (slashIndex <= 0)
+        {
+            // A pack path can be a direct top-level directory like "tex_alt".
+            // Ignore obvious file-like values in that case.
+            if (!normalized.Contains("."))
+            {
+                referencedDirectories.Add(normalized);
+            }
+            return;
+        }
+
+        string topLevel = normalized.Substring(0, slashIndex);
+        if (!string.IsNullOrWhiteSpace(topLevel))
+        {
+            referencedDirectories.Add(topLevel);
+        }
     }
 
     public void CopyDirectory(string path, string dest)
@@ -63,6 +130,7 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
             tempLock = null;
             Directory.Delete(tempPath, true);
         }
+        referencedTopLevelDirectories.Clear();
     }
 
     public static void CleanUpTempDirectories(string tempParentPath)

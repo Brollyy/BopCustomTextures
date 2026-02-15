@@ -5,6 +5,7 @@ using UnityEngine.Rendering;
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Linq;
 using BopCustomTextures.Scripts;
 using ILogger = BopCustomTextures.Logging.ILogger;
 
@@ -22,7 +23,12 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
     public readonly HashSet<SceneKey> CustomSpritesInited = [];
     public readonly Dictionary<Texture2D, Dictionary<string, Sprite>> SpriteMaps = [];
     public readonly HashSet<Sprite> CustomSprites = [];
+    public readonly Dictionary<Sprite, Sprite> OriginalSpriteByReplacement = [];
     public readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
+    public readonly Dictionary<string, Dictionary<SceneKey, Dictionary<int, Texture2D>>> PreloadedAtlasTexturesByPackPath = new Dictionary<string, Dictionary<SceneKey, Dictionary<int, Texture2D>>>(System.StringComparer.OrdinalIgnoreCase);
+    public readonly Dictionary<string, Dictionary<SceneKey, Dictionary<string, Texture2D>>> PreloadedSeperateTexturesByPackPath = new Dictionary<string, Dictionary<SceneKey, Dictionary<string, Texture2D>>>(System.StringComparer.OrdinalIgnoreCase);
+    public readonly Dictionary<string, Texture2D> PreloadedTextureOverridesByPath = new Dictionary<string, Texture2D>(System.StringComparer.OrdinalIgnoreCase);
+    public readonly List<string> DefaultPackPaths = [];
     public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase);
     public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase);
@@ -34,53 +40,459 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
         return PathRegex.IsMatch(path);
     }
 
-    public int LocateCustomTextures(string path, string parentPath)
+    public int PreloadReferenceFrame(CustomTexReferenceFrame frame, string mixtapeRootPath)
     {
-        int filesLoaded = 0;
-        var fullFilepaths = Directory.EnumerateFiles(path);
-        foreach (var fullFilepath in fullFilepaths)
+        ClearPreloadedTextureCaches();
+
+        DefaultPackPaths.Clear();
+        foreach (var fullPath in ResolveDefaultPackPathsByRegex(mixtapeRootPath))
         {
-            var localFilepath = fullFilepath.Substring(parentPath.Length + 1);
-            if (CheckIsCustomTexture(fullFilepath, localFilepath))
+            DefaultPackPaths.Add(Path.GetFileName(fullPath));
+        }
+
+        var packPathsToLoad = new HashSet<string>(DefaultPackPaths, System.StringComparer.OrdinalIgnoreCase);
+        foreach (var configuredPath in frame.TexturePackPaths)
+        {
+            packPathsToLoad.Add(configuredPath);
+        }
+
+        int filesLoaded = 0;
+        foreach (var configuredPath in packPathsToLoad)
+        {
+            filesLoaded += PreloadTexturePack(configuredPath, mixtapeRootPath);
+        }
+
+        foreach (var overridePath in frame.TextureOverridePaths)
+        {
+            string resolvedPath = ResolveConfiguredPackPath(overridePath, mixtapeRootPath);
+            if (!File.Exists(resolvedPath))
+            {
+                logger.LogWarning($"Texture override file does not exist: {resolvedPath}");
+                continue;
+            }
+            Texture2D texture = LoadImage(resolvedPath, overridePath, Path.GetFileName(resolvedPath));
+            if (texture != null)
+            {
+                PreloadedTextureOverridesByPath[overridePath] = texture;
+                filesLoaded++;
+            }
+        }
+
+        return filesLoaded;
+    }
+
+    public int ApplyRuntimeSelection(string activePackPath, Dictionary<string, string> textureOverrides, string mixtapeRootPath)
+    {
+        CustomAtlasTextures.Clear();
+        CustomSeperateTextures.Clear();
+        CustomSeperateTexturesNotInited.Clear();
+
+        var packPaths = string.IsNullOrWhiteSpace(activePackPath)
+            ? DefaultPackPaths
+            : [activePackPath];
+
+        foreach (var packPath in packPaths)
+        {
+            if (string.IsNullOrWhiteSpace(packPath))
+            {
+                continue;
+            }
+            if (!PreloadedAtlasTexturesByPackPath.TryGetValue(packPath, out var atlasByScene) ||
+                !PreloadedSeperateTexturesByPackPath.TryGetValue(packPath, out var separateByScene))
+            {
+                string resolvedPath = ResolveConfiguredPackPath(packPath, mixtapeRootPath);
+                logger.LogWarning($"Custom texture pack path does not exist: {resolvedPath}");
+                continue;
+            }
+            MergeTexturePackIntoActive(atlasByScene, separateByScene);
+        }
+
+        foreach (var textureOverride in textureOverrides)
+        {
+            ApplyTextureOverrideFromCache(textureOverride.Key, textureOverride.Value, mixtapeRootPath);
+        }
+
+        return CustomAtlasTextures.Sum(x => x.Value.Count) + CustomSeperateTextures.Sum(x => x.Value.Count);
+    }
+
+    public void ClearPreloadedTextureCaches()
+    {
+        foreach (var atlasPack in PreloadedAtlasTexturesByPackPath.Values)
+        {
+            foreach (var atlasScene in atlasPack.Values)
+            {
+                foreach (var texture in atlasScene.Values)
+                {
+                    Object.Destroy(texture);
+                }
+            }
+        }
+        foreach (var separatePack in PreloadedSeperateTexturesByPackPath.Values)
+        {
+            foreach (var separateScene in separatePack.Values)
+            {
+                foreach (var texture in separateScene.Values)
+                {
+                    Object.Destroy(texture);
+                }
+            }
+        }
+        foreach (var overrideTexture in PreloadedTextureOverridesByPath.Values)
+        {
+            Object.Destroy(overrideTexture);
+        }
+
+        PreloadedAtlasTexturesByPackPath.Clear();
+        PreloadedSeperateTexturesByPackPath.Clear();
+        PreloadedTextureOverridesByPath.Clear();
+        DefaultPackPaths.Clear();
+    }
+
+    public int PreloadTexturePack(string configuredPath, string mixtapeRootPath)
+    {
+        if (PreloadedAtlasTexturesByPackPath.ContainsKey(configuredPath) &&
+            PreloadedSeperateTexturesByPackPath.ContainsKey(configuredPath))
+        {
+            return 0;
+        }
+
+        string resolvedPath = ResolveConfiguredPackPath(configuredPath, mixtapeRootPath);
+        if (!Directory.Exists(resolvedPath))
+        {
+            logger.LogWarning($"Custom texture pack path does not exist: {resolvedPath}");
+            PreloadedAtlasTexturesByPackPath[configuredPath] = [];
+            PreloadedSeperateTexturesByPackPath[configuredPath] = [];
+            return 0;
+        }
+
+        var atlasByScene = new Dictionary<SceneKey, Dictionary<int, Texture2D>>();
+        var separateByScene = new Dictionary<SceneKey, Dictionary<string, Texture2D>>();
+        int filesLoaded = 0;
+        foreach (var fullFilepath in Directory.EnumerateFiles(resolvedPath, "*", SearchOption.AllDirectories))
+        {
+            if (LoadCustomTextureIntoCollections(fullFilepath, resolvedPath, configuredPath, atlasByScene, separateByScene))
             {
                 filesLoaded++;
             }
         }
-        var fullSubpaths = Directory.EnumerateDirectories(path);
-        foreach (var fullSubpath in fullSubpaths)
+        PreloadedAtlasTexturesByPackPath[configuredPath] = atlasByScene;
+        PreloadedSeperateTexturesByPackPath[configuredPath] = separateByScene;
+        return filesLoaded;
+    }
+
+    public void MergeTexturePackIntoActive(
+        Dictionary<SceneKey, Dictionary<int, Texture2D>> atlasByScene,
+        Dictionary<SceneKey, Dictionary<string, Texture2D>> separateByScene
+    )
+    {
+        foreach (var sceneEntry in atlasByScene)
         {
-            filesLoaded += LocateCustomTextures(fullSubpath, parentPath);
+            if (!CustomAtlasTextures.TryGetValue(sceneEntry.Key, out var atlasTarget))
+            {
+                atlasTarget = [];
+                CustomAtlasTextures[sceneEntry.Key] = atlasTarget;
+            }
+            foreach (var atlasEntry in sceneEntry.Value)
+            {
+                atlasTarget[atlasEntry.Key] = atlasEntry.Value;
+            }
+        }
+
+        foreach (var sceneEntry in separateByScene)
+        {
+            if (!CustomSeperateTextures.TryGetValue(sceneEntry.Key, out var separateTarget))
+            {
+                separateTarget = [];
+                CustomSeperateTextures[sceneEntry.Key] = separateTarget;
+            }
+            if (!CustomSeperateTexturesNotInited.TryGetValue(sceneEntry.Key, out var notInitedTarget))
+            {
+                notInitedTarget = [];
+                CustomSeperateTexturesNotInited[sceneEntry.Key] = notInitedTarget;
+            }
+            foreach (var separateEntry in sceneEntry.Value)
+            {
+                separateTarget[separateEntry.Key] = separateEntry.Value;
+                notInitedTarget[separateEntry.Value] = separateEntry.Key;
+            }
+        }
+    }
+
+    public void ApplyTextureOverrideFromCache(string qualifiedPath, string overridePath, string mixtapeRootPath)
+    {
+        if (!TryParseQualifiedTexturePath(qualifiedPath, out var scene, out var atlasIndex, out var spriteName, out var isAtlas))
+        {
+            logger.LogWarning($"Invalid texture override target: {qualifiedPath}");
+            return;
+        }
+
+        if (!PreloadedTextureOverridesByPath.TryGetValue(overridePath, out var tex))
+        {
+            string resolvedPath = ResolveConfiguredPackPath(overridePath, mixtapeRootPath);
+            logger.LogWarning($"Texture override file does not exist: {resolvedPath}");
+            return;
+        }
+
+        if (isAtlas)
+        {
+            if (!CustomAtlasTextures.TryGetValue(scene, out var sceneAtlas))
+            {
+                sceneAtlas = [];
+                CustomAtlasTextures[scene] = sceneAtlas;
+            }
+            sceneAtlas[atlasIndex] = tex;
+            return;
+        }
+
+        if (!CustomSeperateTextures.TryGetValue(scene, out var sceneSeparate))
+        {
+            sceneSeparate = [];
+            CustomSeperateTextures[scene] = sceneSeparate;
+        }
+        if (!CustomSeperateTexturesNotInited.TryGetValue(scene, out var sceneNotInited))
+        {
+            sceneNotInited = [];
+            CustomSeperateTexturesNotInited[scene] = sceneNotInited;
+        }
+        sceneSeparate[spriteName] = tex;
+        sceneNotInited[tex] = spriteName;
+    }
+
+    public bool LoadCustomTextureIntoCollections(
+        string fullFilepath,
+        string packRootPath,
+        string localPrefix,
+        Dictionary<SceneKey, Dictionary<int, Texture2D>> atlasByScene,
+        Dictionary<SceneKey, Dictionary<string, Texture2D>> separateByScene
+    )
+    {
+        string localFilepath = fullFilepath.Substring(packRootPath.Length).TrimStart('\\', '/');
+        string[] splitPath = localFilepath.Split(['\\', '/'], System.StringSplitOptions.RemoveEmptyEntries);
+        if (splitPath.Length < 2)
+        {
+            return false;
+        }
+        SceneKey scene = ToSceneKeyOrInvalid(splitPath[0]);
+        if (scene == SceneKey.Invalid)
+        {
+            return false;
+        }
+
+        string filename = Path.GetFileName(fullFilepath);
+        string loggedPath = $"{localPrefix}/{localFilepath}".Replace('\\', '/');
+        Match matchAtlas = FileRegexAtlas.Match(filename);
+        if (matchAtlas.Success)
+        {
+            logger.LogFileLoading($"Found custom atlas texture: {scene} ~ {filename}");
+            Texture2D tex = LoadImage(fullFilepath, loggedPath, filename);
+            if (tex == null)
+            {
+                return false;
+            }
+            if (!atlasByScene.TryGetValue(scene, out var atlas))
+            {
+                atlas = [];
+                atlasByScene[scene] = atlas;
+            }
+            atlas[int.Parse(matchAtlas.Groups[1].Value)] = tex;
+            return true;
+        }
+
+        Match matchSeperate = FileRegexSeperate.Match(filename);
+        if (matchSeperate.Success)
+        {
+            logger.LogFileLoading($"Found custom seperate texture: {scene} ~ {filename}");
+            Texture2D tex = LoadImage(fullFilepath, loggedPath, filename);
+            if (tex == null)
+            {
+                return false;
+            }
+            if (!separateByScene.TryGetValue(scene, out var separate))
+            {
+                separate = [];
+                separateByScene[scene] = separate;
+            }
+            separate[matchSeperate.Groups[1].Value] = tex;
+            return true;
+        }
+        return false;
+    }
+
+    public int LoadCustomTexturePack(string configuredPath, string mixtapeRootPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            int filesLoaded = 0;
+            foreach (var subpath in ResolveDefaultPackPathsByRegex(mixtapeRootPath))
+            {
+                filesLoaded += LoadCustomTexturePackResolved(subpath, Path.GetFileName(subpath));
+            }
+            return filesLoaded;
+        }
+
+        string resolvedPath = ResolveConfiguredPackPath(configuredPath, mixtapeRootPath);
+        if (!Directory.Exists(resolvedPath))
+        {
+            logger.LogWarning($"Custom texture pack path does not exist: {resolvedPath}");
+        }
+        return LoadCustomTexturePackResolved(resolvedPath, configuredPath);
+    }
+
+    public int LoadCustomTexturePackResolved(string path, string localPrefix)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return 0;
+        }
+
+        int filesLoaded = 0;
+        foreach (var fullFilepath in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            if (CheckIsCustomTextureInPack(fullFilepath, path, localPrefix))
+            {
+                filesLoaded++;
+            }
         }
         return filesLoaded;
     }
 
-    public bool CheckIsCustomTexture(string path, string localPath)
+    public static List<string> ResolveDefaultPackPathsByRegex(string mixtapeRootPath)
     {
-        Match match = FileRegex.Match(localPath);
-        if (match.Success)
+        List<string> paths = [];
+        if (string.IsNullOrEmpty(mixtapeRootPath) || !Directory.Exists(mixtapeRootPath))
         {
-            SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
-            if (scene != SceneKey.Invalid)
+            return paths;
+        }
+        foreach (var subpath in Directory.EnumerateDirectories(mixtapeRootPath))
+        {
+            if (IsCustomTextureDirectory(subpath))
             {
-                string filename = match.Groups[2].Value;
-                Match match2 = FileRegexAtlas.Match(filename);
-                if (match2.Success)
-                {
-                    logger.LogFileLoading($"Found custom atlas texture: {scene} ~ {filename}");
-                    LoadCustomAtlasTexture(path, localPath, filename, scene, int.Parse(match2.Groups[1].Value));
-                    return true;
-                }
-                Match match3 = FileRegexSeperate.Match(filename);
-                if (match3.Success)
-                {
-                    logger.LogFileLoading($"Found custom seperate texture: {scene} ~ {filename}");
-                    LoadCustomSeperateTexture(path, localPath, filename, scene, match3.Groups[1].Value);
-                    return true;
-                }
-
+                paths.Add(subpath);
             }
         }
+        return paths;
+    }
+
+    public static string ResolveConfiguredPackPath(string configuredPath, string mixtapeRootPath)
+    {
+        if (Path.IsPathRooted(configuredPath) || string.IsNullOrEmpty(mixtapeRootPath))
+        {
+            return configuredPath;
+        }
+        return Path.Combine(mixtapeRootPath, configuredPath);
+    }
+
+    public bool CheckIsCustomTextureInPack(string fullFilepath, string packRootPath, string localPrefix)
+    {
+        string localFilepath = fullFilepath.Substring(packRootPath.Length).TrimStart('\\', '/');
+        string[] splitPath = localFilepath.Split(['\\', '/'], System.StringSplitOptions.RemoveEmptyEntries);
+        if (splitPath.Length < 2)
+        {
+            return false;
+        }
+        SceneKey scene = ToSceneKeyOrInvalid(splitPath[0]);
+        if (scene == SceneKey.Invalid)
+        {
+            return false;
+        }
+
+        string filename = Path.GetFileName(fullFilepath);
+        string loggedPath = $"{localPrefix}/{localFilepath}".Replace('\\', '/');
+        Match matchAtlas = FileRegexAtlas.Match(filename);
+        if (matchAtlas.Success)
+        {
+            logger.LogFileLoading($"Found custom atlas texture: {scene} ~ {filename}");
+            LoadCustomAtlasTexture(fullFilepath, loggedPath, filename, scene, int.Parse(matchAtlas.Groups[1].Value));
+            return true;
+        }
+        Match matchSeperate = FileRegexSeperate.Match(filename);
+        if (matchSeperate.Success)
+        {
+            logger.LogFileLoading($"Found custom seperate texture: {scene} ~ {filename}");
+            LoadCustomSeperateTexture(fullFilepath, loggedPath, filename, scene, matchSeperate.Groups[1].Value);
+            return true;
+        }
         return false;
+    }
+
+    public bool ApplyTextureOverride(string qualifiedPath, string filePath)
+    {
+        if (!TryParseQualifiedTexturePath(qualifiedPath, out var scene, out var atlasIndex, out var spriteName, out var isAtlas))
+        {
+            logger.LogWarning($"Invalid texture override target: {qualifiedPath}");
+            return false;
+        }
+        if (!File.Exists(filePath))
+        {
+            logger.LogWarning($"Texture override file does not exist: {filePath}");
+            return false;
+        }
+        string filename = Path.GetFileName(filePath);
+        Texture2D tex = LoadImage(filePath, filePath, filename);
+        if (tex == null)
+        {
+            return false;
+        }
+        if (isAtlas)
+        {
+            if (!CustomAtlasTextures.ContainsKey(scene))
+            {
+                CustomAtlasTextures[scene] = [];
+            }
+            else if (CustomAtlasTextures[scene].ContainsKey(atlasIndex))
+            {
+                Object.Destroy(CustomAtlasTextures[scene][atlasIndex]);
+            }
+            CustomAtlasTextures[scene][atlasIndex] = tex;
+            return true;
+        }
+
+        if (!CustomSeperateTextures.ContainsKey(scene))
+        {
+            CustomSeperateTextures[scene] = [];
+            CustomSeperateTexturesNotInited[scene] = [];
+        }
+        else if (CustomSeperateTextures[scene].ContainsKey(spriteName))
+        {
+            Object.Destroy(CustomSeperateTextures[scene][spriteName]);
+        }
+        CustomSeperateTextures[scene][spriteName] = tex;
+        CustomSeperateTexturesNotInited[scene][tex] = spriteName;
+        return true;
+    }
+
+    public bool TryParseQualifiedTexturePath(string qualifiedPath, out SceneKey scene, out int atlasIndex, out string spriteName, out bool isAtlas)
+    {
+        scene = SceneKey.Invalid;
+        atlasIndex = -1;
+        spriteName = null;
+        isAtlas = false;
+
+        if (string.IsNullOrWhiteSpace(qualifiedPath))
+        {
+            return false;
+        }
+        string[] splitPath = qualifiedPath.Split(['\\', '/'], System.StringSplitOptions.RemoveEmptyEntries);
+        if (splitPath.Length < 2)
+        {
+            return false;
+        }
+        scene = ToSceneKeyOrInvalid(splitPath[0]);
+        if (scene == SceneKey.Invalid)
+        {
+            return false;
+        }
+        string textureName = splitPath[1];
+        Match match = FileRegexAtlas.Match(textureName);
+        if (match.Success)
+        {
+            isAtlas = true;
+            atlasIndex = int.Parse(match.Groups[1].Value);
+            return true;
+        }
+
+        spriteName = textureName;
+        return true;
     }
 
     public void LoadCustomAtlasTexture(string path, string localPath, string filename, SceneKey scene, int spriteAtlasIndex)
@@ -138,7 +550,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
         return tex;
     }
 
-    public void UnloadCustomTextures()
+    public void UnloadCustomTextures(bool destroyLoadedTextures = true)
     {
         foreach (var q in SpriteMaps)
         {
@@ -156,31 +568,75 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
         }
         SpriteMaps.Clear();
         CustomSprites.Clear();
+        OriginalSpriteByReplacement.Clear();
         CustomSpritesInited.Clear();
-        foreach (var q in CustomAtlasTextures)
+        if (destroyLoadedTextures)
         {
-            SceneKey scene = q.Key;
-            var textures = q.Value;
-            logger.LogUnloading($"Unloading custom atlas textures: {scene}");
-            foreach (var w in textures)
+            foreach (var q in CustomAtlasTextures)
             {
-                Object.Destroy(w.Value);
+                SceneKey scene = q.Key;
+                var textures = q.Value;
+                logger.LogUnloading($"Unloading custom atlas textures: {scene}");
+                foreach (var w in textures)
+                {
+                    Object.Destroy(w.Value);
+                }
+            }
+
+            foreach (var q in CustomSeperateTextures)
+            {
+                SceneKey scene = q.Key;
+                var textures = q.Value;
+                logger.LogUnloading($"Unloading custom seperate textures: {scene}");
+                foreach (var w in textures)
+                {
+                    Object.Destroy(w.Value);
+                }
             }
         }
         CustomAtlasTextures.Clear();
-        foreach (var q in CustomSeperateTextures)
-        {
-            SceneKey scene = q.Key;
-            var textures = q.Value;
-            logger.LogUnloading($"Unloading custom seperate textures: {scene}");
-            foreach (var w in textures)
-            {
-                Object.Destroy(w.Value);
-            }
-        }
         CustomSeperateTextures.Clear();
         CustomSeperateTexturesNotInited.Clear();
         TextureMaps.Clear();
+    }
+
+    public void RestoreOriginalSpritesOnLoadedRoots(MixtapeLoaderCustom __instance)
+    {
+        if (__instance == null || OriginalSpriteByReplacement.Count == 0)
+        {
+            return;
+        }
+
+        var rootObjects = rootObjectsRef(__instance);
+        if (rootObjects == null || rootObjects.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var rootObj in rootObjects.Values)
+        {
+            if (rootObj == null)
+            {
+                continue;
+            }
+            var spriteRenderers = rootObj.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var spriteRenderer in spriteRenderers)
+            {
+                if (spriteRenderer == null || spriteRenderer.sprite == null)
+                {
+                    continue;
+                }
+                if (OriginalSpriteByReplacement.TryGetValue(spriteRenderer.sprite, out var original))
+                {
+                    spriteRenderer.sprite = original;
+                    CustomSpriteSwapper script = spriteRenderer.gameObject.GetComponent<CustomSpriteSwapper>();
+                    if (script != null)
+                    {
+                        script.last = original;
+                    }
+                }
+            }
+        }
     }
 
     public void InitCustomTextures(MixtapeLoaderCustom __instance, SceneKey sceneKey)
@@ -249,7 +705,11 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
         foreach (var spriteRenderer in spriteRenderers)
         {
             ReplaceCustomSprite(spriteRenderer, scene);
-            CustomSpriteSwapper script = spriteRenderer.gameObject.AddComponent<CustomSpriteSwapper>();
+            CustomSpriteSwapper script = spriteRenderer.gameObject.GetComponent<CustomSpriteSwapper>();
+            if (script == null)
+            {
+                script = spriteRenderer.gameObject.AddComponent<CustomSpriteSwapper>();
+            }
             script.last = spriteRenderer.sprite; // doing this in Awake() is insufficient
             script.scene = scene;
             script.textureManager = this;
@@ -354,6 +814,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
 
         SpriteMaps[original.texture][original.name] = replacement;
         CustomSprites.Add(replacement);
+        OriginalSpriteByReplacement[replacement] = original;
     }
 
     public void CreateCustomAtlasSprite(Sprite original, Texture2D tex, SceneKey scene)
@@ -375,6 +836,7 @@ public class CustomTextureManager(ILogger logger) : BaseCustomManager(logger)
 
         SpriteMaps[original.texture][original.name] = replacement;
         CustomSprites.Add(replacement);
+        OriginalSpriteByReplacement[replacement] = original;
     }
 
     public static void CopySpriteMesh(Sprite srcSprite, Sprite destSprite)
