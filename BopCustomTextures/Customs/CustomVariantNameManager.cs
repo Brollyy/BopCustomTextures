@@ -44,14 +44,15 @@ public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger
                 return false;
             }
         }
-        if (VariantMaps.TryGetValue(scene, out var variantMap) &&
-            variantMap.TryGetValue(match.Groups[2].Value, out variant))
+        if (!VariantMaps.TryGetValue(scene, out var variantMap) ||
+            !variantMap.TryGetValue(match.Groups[2].Value, out variant))
         {
-            return true;
+            logger.LogError($"Variant \"{match.Groups[2].Value}\" doesn't exist in scene {scene}");
+            variant = -1;
+            return false;
         }
-        logger.LogError($"Variant \"{match.Groups[2].Value}\" doesn't exist in scene {scene}");
-        variant = -1;
-        return false;
+        return true;
+
     }
 
     public bool TryGetVariants(SceneKey scene, string names, out List<int> variants)
@@ -75,12 +76,125 @@ public class CustomVariantNameManager(ILogger logger) : BaseCustomManager(logger
         } 
         else
         {
-            var result = new List<int>();
+            List<int> result = [];
             for (int i = 0; i < matches.Count - 1; i++)
             {
-                if (TryGetVariant(scene, matches[0].Groups[1].Value.Trim(), out var variant))
+                if (TryGetVariant(scene, matches[i].Groups[1].Value.Trim(), out var variant))
                 {
                     result.Add(variant);
+                }
+            }
+            if (result.Count < 1)
+            {
+                logger.LogError($"Variants \"{names}\" contained no valid variants");
+                variants = null;
+                return false;
+            }
+            variants = result;
+            return true;
+        }
+    }
+
+    public bool TryGetVariantAll(string name, out Dictionary<SceneKey, int> variants)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            variants = [];
+            foreach (var pair in VariantMaps)
+            {
+                variants[pair.Key] = 0;
+            }
+            return true;
+        }
+        var match = VariantRegex.Match(name);
+        if (!match.Success)
+        {
+            logger.LogError($"Variant \"{name}\" couldn't be parsed");
+            variants = null;
+            return false;
+        }
+        if (!string.IsNullOrEmpty(match.Groups[1].Value))
+        {
+            var scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
+            if (scene == SceneKey.Invalid)
+            {
+                logger.LogError($"Variant \"{name}\" has an invalid scene \"{match.Groups[1].Value}\"");
+                variants = null;
+                return false;
+            }
+            if (!VariantMaps.TryGetValue(scene, out var variantMap) ||
+                !variantMap.TryGetValue(match.Groups[2].Value, out var variant3))
+            {
+                logger.LogError($"Variant \"{match.Groups[2].Value}\" doesn't exist in scene {scene}");
+                variants = null;
+                return false;
+            }
+            variants = [];
+            foreach (var pair in VariantMaps)
+            {
+                variants[pair.Key] = variant3;
+            }
+            return true;
+        }
+        Dictionary<SceneKey, int> result = [];
+        foreach (var pair in VariantMaps)
+        {
+            if (pair.Value.TryGetValue(match.Groups[2].Value, out var variant))
+            {
+                result[pair.Key] = variant;
+            }
+        }
+        if (result.Count < 1)
+        {
+            logger.LogError($"Variant \"{match.Groups[2].Value}\" doesn't exist in any scene");
+            variants = null;
+            return false;
+        }
+        variants = result;
+        return true;
+    }
+
+    public bool TryGetVariantsAll(string names, out Dictionary<SceneKey, List<int>> variants)
+    {
+        var matches = VariantsRegex.Matches(names);
+        if (matches.Count < 1)
+        {
+            logger.LogError($"Variants \"{names}\" couldn't be parsed");
+            variants = null;
+            return false;
+        }
+        else if (matches.Count == 1)
+        {
+            if (!TryGetVariantAll(matches[0].Groups[1].Value.Trim(), out var variants2))
+            {
+                variants = null;
+                return false;
+            }
+            variants = [];
+            foreach (var pair in variants2)
+            {
+                variants[pair.Key] = [pair.Value];
+            }
+            return true;
+        }
+        else
+        {
+            Dictionary<SceneKey, List<int>> result = [];
+            for (int i = 0; i < matches.Count - 1; i++)
+            {
+                if (TryGetVariantAll(matches[i].Groups[1].Value.Trim(), out var variant))
+                {
+                    foreach (var key in variant)
+                    {
+                        if (!result.ContainsKey(key.Key))
+                        {
+                            result[key.Key] = [key.Value];
+                        }
+                        else
+                        {
+                            result[key.Key].Add(key.Value);
+                        }
+                    }
                 }
             }
             if (result.Count < 1)

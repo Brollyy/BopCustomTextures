@@ -21,4 +21,13 @@ public class MGameObjectResolved(MGameObject mobj, GameObject obj)
             childObj.Apply();
         }
     }
+
+    public void ApplyOnlyDeferred()
+    {
+        mobj.ApplyDeferred(obj);
+        foreach (var childObj in childObjs)
+        {
+            childObj.ApplyOnlyDeferred();
+        }
+    }
 }

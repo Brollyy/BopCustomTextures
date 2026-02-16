@@ -291,15 +291,19 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         var sceneSpriteSwappers = new Dictionary<SceneKey, CustomSpriteSwapper[]>();
         foreach (Entity entity in entities)
         {
-            if (!entity.dataModel.StartsWith(MyPluginInfo.PLUGIN_GUID))
-            {
-                continue;
-            }
-            var match = MixtapeEventRegex.Match(entity.dataModel);
-            if (!match.Success)
-            {
-                continue;
-            }
+            PrepareEvent(__instance, entity, sceneSpriteSwappers);
+        }
+    }
+
+    public void PrepareEvent(MixtapeLoaderCustom __instance, Entity entity, Dictionary<SceneKey, CustomSpriteSwapper[]> sceneSpriteSwappers)
+    {
+        if (!entity.dataModel.StartsWith(MyPluginInfo.PLUGIN_GUID))
+        {
+            return;
+        }
+        var match = MixtapeEventRegex.Match(entity.dataModel);
+        if (match.Success)
+        {
             byte operation = 0;
             if (match.Groups[2].Value == "remove")
             {
@@ -311,89 +315,224 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
             }
             else if (match.Groups[2].Value != "add")
             {
-                continue;
+                return;
             }
+            PrepareVariantEvent(__instance, entity, operation, sceneSpriteSwappers);
+        }
+        else if (entity.dataModel == $"{MyPluginInfo.PLUGIN_GUID}/toggle custom textures")
+        {
+            PrepareToggleEvent(__instance, entity, sceneSpriteSwappers);
+        }
+    }
 
-            var sceneStr = entity.GetString("scene");
+    public void PrepareVariantEvent(MixtapeLoaderCustom __instance, Entity entity, int operation, Dictionary<SceneKey, CustomSpriteSwapper[]> sceneSpriteSwappers)
+    {
+        Dictionary<SceneKey, List<int>> scenes;
+        var sceneStr = entity.GetString("scene");
+        if (sceneStr == "all")
+        {
+            if (!VariantManager.TryGetVariantsAll(entity.GetString("variant"), out scenes))
+            {
+                return;
+            }
+            List<SceneKey> toRemove = [];
+            foreach (var pair in scenes)
+            {
+                var scene = pair.Key;
+                if (!sceneSpriteSwappers.TryGetValue(scene, out var spriteSwappers))
+                {
+                    if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
+                    {
+                        toRemove.Add(scene);
+                        continue;
+                    }
+                    spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(true);
+                    sceneSpriteSwappers[scene] = spriteSwappers;
+                }
+            }
+            foreach (var scene in toRemove)
+            {
+                scenes.Remove(scene);
+            }
+            if (scenes.Count < 1)
+            {
+                logger.LogError($"Cannot use variant event with no scenes");
+                return;
+            }
+        }
+        else
+        {
             var scene = ToSceneKeyOrInvalid(sceneStr);
             if (scene == SceneKey.Invalid)
             {
                 logger.LogError($"Scene \"{sceneStr}\" is not a valid scene key");
-                continue;
+                return;
             }
             if (!sceneSpriteSwappers.TryGetValue(scene, out var spriteSwappers))
             {
                 if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
                 {
-                    logger.LogError($"Cannot apply texture variant to missing scene {scene}");
-                    continue;
+                    logger.LogError($"Cannot use variant event for missing scene {scene}");
+                    return;
                 }
                 spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(true);
                 sceneSpriteSwappers[scene] = spriteSwappers;
             }
-
             if (!VariantManager.TryGetVariants(scene, entity.GetString("variant"), out var variants))
             {
-                continue;
+                return;
             }
-            var destVariants = Variants[scene];
+            scenes = [];
+            scenes[scene] = variants;
+        }
 
-            switch (operation)
-            {
-                case 0:
-                    __instance.scheduler.Schedule(entity.beat, delegate
+        switch (operation)
+        {
+            case 0: // add
+                __instance.scheduler.Schedule(entity.beat, delegate
+                {
+                    foreach (var pair in scenes)
                     {
-                        foreach (var variant in variants)
+                        var destVariants = Variants[pair.Key];
+                        foreach (var variant in pair.Value)
                         {
                             destVariants.Remove(variant);
                             destVariants.Add(variant);
                         }
-                        foreach (var spriteSwapper in spriteSwappers)
+                        foreach (var spriteSwapper in sceneSpriteSwappers[pair.Key])
                         {
-                            spriteSwapper.ReplaceCustomSprites();
+                            spriteSwapper.Replace();
                         }
-                    });
-                    break;
-                case 1:
-                    __instance.scheduler.Schedule(entity.beat, delegate
+                    }
+                });
+                break;
+            case 1: // remove
+                __instance.scheduler.Schedule(entity.beat, delegate
+                {
+                    foreach (var pair in scenes)
                     {
-                        foreach (var variant in variants)
+                        var destVariants = Variants[pair.Key];
+                        foreach (var variant in pair.Value)
                         {
                             destVariants.Remove(variant);
                         }
-                        foreach (var spriteSwapper in spriteSwappers)
+                        foreach (var spriteSwapper in sceneSpriteSwappers[pair.Key])
                         {
-                            spriteSwapper.ReplaceCustomSprites();
+                            spriteSwapper.Replace();
                         }
-                    });
-                    break;
-                case 2: 
-                    __instance.scheduler.Schedule(entity.beat, delegate
+                    }
+                });
+                break;
+            case 2: // set
+                __instance.scheduler.Schedule(entity.beat, delegate
+                {
+                    foreach (var pair in scenes)
                     {
-                        Variants[scene] = variants;
-                        foreach (var spriteSwapper in spriteSwappers)
+                        Variants[pair.Key] = pair.Value;
+                        foreach (var spriteSwapper in sceneSpriteSwappers[pair.Key])
                         {
-                            spriteSwapper.ReplaceCustomSprites();
+                            spriteSwapper.Replace();
                         }
-                    });
-                    break;
-            }
+                    }
+                });
+                break;
         }
     }
+
+    public void PrepareToggleEvent(MixtapeLoaderCustom __instance, Entity entity, Dictionary<SceneKey, CustomSpriteSwapper[]> sceneSpriteSwappers)
+    {
+        List<SceneKey> scenes;
+        var sceneStr = entity.GetString("scene");
+        if (sceneStr == "all")
+        {
+            scenes = [];
+            foreach (var scene in SpritesInited)
+            {
+                if (!sceneSpriteSwappers.TryGetValue(scene, out var spriteSwappers))
+                {
+                    if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
+                    {
+                        continue;
+                    }
+                    spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(true);
+                    sceneSpriteSwappers[scene] = spriteSwappers;
+                }
+                scenes.Add(scene);
+            }
+            if (scenes.Count < 1)
+            {
+                logger.LogError($"Cannot use toggle texture event with no scenes");
+                return;
+            }
+        }
+        else
+        {
+            var scene = ToSceneKeyOrInvalid(sceneStr);
+            if (scene == SceneKey.Invalid)
+            {
+                logger.LogError($"Scene \"{sceneStr}\" is not a valid scene key");
+                return;
+            }
+            if (!sceneSpriteSwappers.TryGetValue(scene, out var spriteSwappers))
+            {
+                if (!rootObjectsRef(__instance).TryGetValue(scene, out var rootObj))
+                {
+                    logger.LogError($"Cannot use toggle texture event for missing scene {scene}");
+                    return;
+                }
+                spriteSwappers = rootObj.GetComponentsInChildren<CustomSpriteSwapper>(true);
+                sceneSpriteSwappers[scene] = spriteSwappers;
+            }
+            scenes = [scene];
+        }
+
+        if (entity.GetBool("toggle"))
+        {
+            __instance.scheduler.Schedule(entity.beat, delegate
+            {
+                foreach (var scene in scenes)
+                {
+                    foreach (var spriteSwapper in sceneSpriteSwappers[scene])
+                    {
+                        spriteSwapper.enabled = true;
+                    }
+                }
+            });
+        } 
+        else
+        {
+            __instance.scheduler.Schedule(entity.beat, delegate
+            {
+                foreach (var scene in scenes)
+                {
+                    foreach (var spriteSwapper in sceneSpriteSwappers[scene])
+                    {
+                        spriteSwapper.enabled = false;
+                    }
+                }
+            });
+        }
+    }
+
     public bool UpdateEventTemplates()
     {
-        var hasCustomTextures = AtlasTextures.Keys.ToHashSet().Union(SeperateTextures.Keys.ToHashSet());
+        var hasCustomTextures = AtlasTextures.Keys.ToHashSet().Union(SeperateTextures.Keys.ToHashSet()).ToList();
         object scenes;
         bool result;
-        if (hasCustomTextures.Count() < 1)
+        if (hasCustomTextures.Count < 1)
         {
             scenes = "";
             result = false;
         }
         else
         {
-            scenes = new MixtapeEventTemplates.ChoiceField<string>(
-                hasCustomTextures.Select(FromSceneKeyOrInvalid).ToArray());
+            string[] choices = new string[hasCustomTextures.Count + 1];
+            choices[0] = "all";
+            for (int i = 0; i < hasCustomTextures.Count; i++)
+            {
+                choices[i + 1] = FromSceneKeyOrInvalid(hasCustomTextures[i]);
+            }
+            scenes = new MixtapeEventTemplates.ChoiceField<string>(choices);
             result = true;
         }
         foreach (var mixtapeEventTemplate in mixtapeEventTemplates)

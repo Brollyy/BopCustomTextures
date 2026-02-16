@@ -51,8 +51,20 @@ public class BopCustomTexturesEventTemplates
         }
     };
 
+    public static readonly MixtapeEventTemplate toggleCustomTexturesTemplate = new()
+    {
+        dataModel = $"{MyPluginInfo.PLUGIN_GUID}/toggle custom textures",
+        length = 0.5f,
+        properties = new Dictionary<string, object>
+        {
+            ["scene"] = "",
+            ["toggle"] = true
+        }
+    };
+
     public static readonly MixtapeEventTemplate[] textureVariantTemplates =
     [
+        toggleCustomTexturesTemplate,
         setTextureVariantTemplate,
         addTextureVariantTemplate,
         removeTextureVariantTemplate
@@ -60,6 +72,7 @@ public class BopCustomTexturesEventTemplates
 
     public static readonly MixtapeEventTemplate[] templates =
     [
+        toggleCustomTexturesTemplate,
         setTextureVariantTemplate,
         addTextureVariantTemplate,
         removeTextureVariantTemplate,

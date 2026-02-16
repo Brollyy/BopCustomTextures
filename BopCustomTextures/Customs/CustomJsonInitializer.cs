@@ -19,12 +19,12 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     private readonly Dictionary<string, Material> ShaderMaterials = [];
     private readonly CustomVariantNameManager VariantManager = variantManager;
 
-    public MGameObject InitGameObject(JObject jobj, SceneKey scene, string name = "", bool isVolatile = false)
+    public MGameObject InitGameObject(JObject jobj, SceneKey scene, string name = "", bool isDeferred = false)
     {
         var mobj = new MGameObject(name);
         var components = new List<MComponent>();
         var childObjs = new List<MGameObject>();
-        var childObjsVolatile = new List<MGameObject>();
+        var childObjsDeferred = new List<MGameObject>();
         foreach (KeyValuePair<string, JToken> dict in jobj)
         {
             if (dict.Key.StartsWith("!"))
@@ -60,16 +60,16 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                 }
 
                 string childName = dict.Key;
-                bool isChildVolatile = isVolatile;
+                bool isChildDeferred = isDeferred;
                 if (childName.StartsWith("~")) {
-                    isChildVolatile = true;
+                    isChildDeferred = true;
                     childName = childName.Substring(1);
                 }
 
-                var mchildObj = InitGameObject((JObject)dict.Value, scene, childName, isChildVolatile);
-                if (isChildVolatile)
+                var mchildObj = InitGameObject((JObject)dict.Value, scene, childName, isChildDeferred);
+                if (isChildDeferred)
                 {
-                    childObjsVolatile.Add(mchildObj);
+                    childObjsDeferred.Add(mchildObj);
                 } 
                 else
                 {
@@ -79,7 +79,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         }
         mobj.components = components.ToArray();
         mobj.childObjs = childObjs.ToArray();
-        mobj.childObjsVolatile = childObjsVolatile.ToArray();
+        mobj.childObjsDeferred = childObjsDeferred.ToArray();
         return mobj;
     }
 
@@ -104,73 +104,73 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
 
     // UNITY COMPONENTS //
-    public MTransform InitTransform(JObject jtransform)
+    public MTransform InitTransform(JObject jcomponent)
     {
-        var mtransform = new MTransform();
-        if (TryGetJVector3(jtransform, "LocalPosition", out var vector3)) mtransform.localPosition = vector3;
-        if (TryGetJQuaternion(jtransform, "LocalRotation", out var quaternion)) mtransform.localRotation = quaternion;
-        if (TryGetJEulerAngles(jtransform, "LocalEulerAngles", out vector3)) mtransform.localEulerAngles = vector3;
-        if (TryGetJVector3(jtransform, "LocalEulerAngles", out vector3)) mtransform.localEulerAngles = vector3;
-        if (TryGetJVector3(jtransform, "LocalScale", out vector3)) mtransform.localScale = vector3;
-        return mtransform;
+        var mcomponent = new MTransform();
+        if (TryGetJVector3(jcomponent, "LocalPosition", out var vector3)) mcomponent.localPosition = vector3;
+        if (TryGetJQuaternion(jcomponent, "LocalRotation", out var quaternion)) mcomponent.localRotation = quaternion;
+        if (TryGetJEulerAngles(jcomponent, "LocalEulerAngles", out vector3)) mcomponent.localEulerAngles = vector3;
+        if (TryGetJVector3(jcomponent, "LocalEulerAngles", out vector3)) mcomponent.localEulerAngles = vector3;
+        if (TryGetJVector3(jcomponent, "LocalScale", out vector3)) mcomponent.localScale = vector3;
+        return mcomponent;
     }
 
-    public MSpriteRenderer InitSpriteRenderer(JObject jspriteRenderer)
+    public MSpriteRenderer InitSpriteRenderer(JObject jcomponent)
     {
-        var mspriteRenderer = new MSpriteRenderer();
-        if (TryGetJColor(jspriteRenderer, "Color", out var color)) mspriteRenderer.color = color;
-        if (TryGetJVector2(jspriteRenderer, "Size", out var vector2)) mspriteRenderer.size = vector2;
+        var mcomponent = new MSpriteRenderer();
+        if (TryGetJColor(jcomponent, "Color", out var color)) mcomponent.color = color;
+        if (TryGetJVector2(jcomponent, "Size", out var vector2)) mcomponent.size = vector2;
         JValue jval;
-        if (TryGetJValue(jspriteRenderer, "FlipX", JTokenType.Boolean, out jval)) mspriteRenderer.flipX = (bool)jval;
-        if (TryGetJValue(jspriteRenderer, "FlipY", JTokenType.Boolean, out jval)) mspriteRenderer.flipY = (bool)jval;
+        if (TryGetJValue(jcomponent, "FlipX", JTokenType.Boolean, out jval)) mcomponent.flipX = (bool)jval;
+        if (TryGetJValue(jcomponent, "FlipY", JTokenType.Boolean, out jval)) mcomponent.flipY = (bool)jval;
         Material mat;
-        if (TryGetJMaterial(jspriteRenderer, "Material", out mat) || 
-            TryGetJShader(jspriteRenderer, "Shader", out mat))
-            mspriteRenderer.material = mat;
-        return mspriteRenderer;
+        if (TryGetJMaterial(jcomponent, "Material", out mat) || 
+            TryGetJShader(jcomponent, "Shader", out mat))
+            mcomponent.material = mat;
+        return mcomponent;
     }
 
-    public MImage InitImage(JObject jimage)
+    public MImage InitImage(JObject jcomponent)
     {
-        var mimage = new MImage();
+        var mcomponent = new MImage();
         Material mat;
-        if (TryGetJMaterial(jimage, "Material", out mat) ||
-            TryGetJShader(jimage, "Shader", out mat))
-            mimage.material = mat;
-        return mimage;
+        if (TryGetJMaterial(jcomponent, "Material", out mat) ||
+            TryGetJShader(jcomponent, "Shader", out mat))
+            mcomponent.material = mat;
+        return mcomponent;
     }
 
-    // BITS & BOPS SCRIPTS //
-    public MParallaxObjectScript InitParallaxObjectScript(JObject jparallaxObjectScript)
+    // MONOBEHAVIOURS //
+    public MParallaxObjectScript InitParallaxObjectScript(JObject jcomponent)
     {
-        var mparallaxObjectScript = new MParallaxObjectScript();
+        var mcomponent = new MParallaxObjectScript();
+        if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
         float jfloat;
-        if (TryGetJFloat(jparallaxObjectScript, "ParallaxScale", out jfloat)) mparallaxObjectScript.parallaxScale = jfloat;
-        if (TryGetJFloat(jparallaxObjectScript, "LoopDistance", out jfloat)) mparallaxObjectScript.loopDistance = jfloat;
-        return mparallaxObjectScript;
+        if (TryGetJFloat(jcomponent, "ParallaxScale", out jfloat)) mcomponent.parallaxScale = jfloat;
+        if (TryGetJFloat(jcomponent, "LoopDistance", out jfloat)) mcomponent.loopDistance = jfloat;
+        return mcomponent;
     }
 
-    // THERE I AM GARY, THERE I AM! //
-
-    public MCustomSpriteSwapper InitCustomSpriteSwapper(JObject jcustomSpriteSwapper, SceneKey scene)
+    public MCustomSpriteSwapper InitCustomSpriteSwapper(JObject jcomponent, SceneKey scene)
     {
-        var mcustomSpriteSwapper = new MCustomSpriteSwapper();
-        if (jcustomSpriteSwapper.TryGetValue("Variants", out var jvariants))
+        var mcomponent = new MCustomSpriteSwapper();
+        if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
+        if (jcomponent.TryGetValue("Variants", out var jvariants))
         {
             switch (jvariants.Type)
             {
                 case JTokenType.Array:
-                    mcustomSpriteSwapper.variants = [];
+                    mcomponent.variants = [];
                     foreach (var jel in (JArray)jvariants)
                     {
                         if (TryGetVariant(jel, scene, out var variant))
                         {
-                            mcustomSpriteSwapper.variants.Add(variant);
+                            mcomponent.variants.Add(variant);
                         }
                     }
                     break;
                 case JTokenType.Object:
-                    mcustomSpriteSwapper.variantsIndexed = [];
+                    mcomponent.variantsIndexed = [];
                     var jobj = (JObject)jvariants;
                     foreach (var pair in jobj)
                     {
@@ -181,7 +181,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                         }
                         if (TryGetVariant(pair.Value, scene, out var variant))
                         {
-                            mcustomSpriteSwapper.variantsIndexed[index] = variant;
+                            mcomponent.variantsIndexed[index] = variant;
                         }
                     }
                     break;
@@ -189,7 +189,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                 case JTokenType.Integer:
                     if (TryGetVariant(jvariants, scene, out var variant2))
                     {
-                        mcustomSpriteSwapper.variants = [variant2];
+                        mcomponent.variants = [variant2];
                     }
                     break;
                 default:
@@ -197,7 +197,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
                     break;
             }
         }
-        return mcustomSpriteSwapper;
+        return mcomponent;
     }
 
     public bool TryGetVariant(JToken jtoken, SceneKey scene, out int variant)

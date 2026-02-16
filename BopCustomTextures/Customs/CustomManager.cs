@@ -160,7 +160,6 @@ public class CustomManager : BaseCustomManager
 
     public void InitScene(MixtapeLoaderCustom __instance, SceneKey sceneKey)
     {
-        textureManager.InitCustomTextures(__instance, sceneKey);
         sceneManager.InitCustomScene(__instance, sceneKey);
     }
 
@@ -168,7 +167,8 @@ public class CustomManager : BaseCustomManager
     {
         foreach (var dict in rootObjectsRef(__instance))
         {
-            sceneManager.InitCustomScene(__instance, dict.Key);
+            textureManager.InitCustomTextures(__instance, dict.Key);
+            sceneManager.InitCustomSceneDeferred(__instance, dict.Key);
         }
         PrepareEvents(__instance, entitiesRef(__instance));
     }
@@ -191,14 +191,8 @@ public class CustomManager : BaseCustomManager
                 entities.Remove(MyPluginInfo.PLUGIN_GUID);
                 break;
             case Display.WhenActive:
-                if (needsTemplates)
-                {
-                    AddEventTemplates(eventTemplatesIndex);
-                }
-                else
-                {
-                    entities.Remove(MyPluginInfo.PLUGIN_GUID);
-                }
+                if (needsTemplates) AddEventTemplates(eventTemplatesIndex);
+                else entities.Remove(MyPluginInfo.PLUGIN_GUID);
                 break;
             case Display.Always:
                 AddEventTemplates(eventTemplatesIndex);

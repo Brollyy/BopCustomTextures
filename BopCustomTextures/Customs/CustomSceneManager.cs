@@ -134,6 +134,18 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
         ResolveGameObject(rootObj, mobj).Apply();
     }
 
+    public void InitCustomSceneDeferred(MixtapeLoaderCustom __instance, SceneKey sceneKey, string key = "")
+    {
+        if (!CustomScenes.ContainsKey(sceneKey) ||
+            !rootObjectsRef(__instance).TryGetValue(sceneKey, out var rootObj) ||
+            !CustomScenes[sceneKey].TryGetValue(key, out var mobj))
+        {
+            return;
+        }
+        logger.LogInfo($"Applying custom scene (deferred): {sceneKey}");
+        ResolveGameObject(rootObj, mobj).ApplyOnlyDeferred();
+    }
+
     public void PrepareEvents(MixtapeLoaderCustom __instance, Entity[] entities)
     {
         var mobjsResolved = new Dictionary<SceneKey, Dictionary<string, MGameObjectResolved>>();

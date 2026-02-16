@@ -22,11 +22,17 @@ public class CustomSpriteSwapper : MonoBehaviour
         if (SpriteRenderer.sprite != Last)
         {
             LastVanilla = SpriteRenderer.sprite;
-            ReplaceCustomSprites();
+            Replace();
         }
     }
 
-    public void ReplaceCustomSprites()
+    void OnDisable()
+    {
+        SpriteRenderer.sprite = LastVanilla;
+        Last = null;
+    }
+
+    public void Replace()
     {
         Last = TextureManager.ReplaceCustomSprite(LastVanilla, Variants);
         SpriteRenderer.sprite = Last;
@@ -39,7 +45,7 @@ public class CustomSpriteSwapper : MonoBehaviour
         {
             Variants.Add(variants);
         }
-        ReplaceCustomSprites();
+        Replace();
     }
     public void ApplyVariants(Dictionary<int, int> indexedVariants)
     {
@@ -47,7 +53,7 @@ public class CustomSpriteSwapper : MonoBehaviour
         {
             Variants[pair.Key] = pair.Value;
         }
-        ReplaceCustomSprites();
+        Replace();
     }
 }
 

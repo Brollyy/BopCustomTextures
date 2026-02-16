@@ -14,7 +14,7 @@ public class MGameObject(string name)
     public string name = name;
     public bool? active;
     public MGameObject[] childObjs;
-    public MGameObject[] childObjsVolatile;
+    public MGameObject[] childObjsDeferred;
     public MComponent[] components;
 
     public void Apply(GameObject obj)
@@ -43,7 +43,12 @@ public class MGameObject(string name)
             }
         }
 
-        foreach (var mchildObj in childObjsVolatile)
+        ApplyDeferred(obj);
+    }
+
+    public void ApplyDeferred(GameObject obj)
+    {
+        foreach (var mchildObj in childObjsDeferred)
         {
             foreach (var childObj in CustomSceneManager.FindGameObjectsInChildren(obj, mchildObj.name))
             {
