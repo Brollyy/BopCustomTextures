@@ -3,9 +3,9 @@ using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using System.Linq;
 using ILogger = BopCustomTextures.Logging.ILogger;
 
 namespace BopCustomTextures.Customs;
@@ -56,7 +56,7 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
 
                 LoadCustomScene(path, scene, release);
                 return true;
-            }
+            } 
         }
         return false;
     }

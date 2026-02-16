@@ -16,6 +16,7 @@ namespace BopCustomTextures.Customs;
 public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager variantManager) : BaseCustomManager(logger)
 {
     private readonly Dictionary<string, Material> Materials = [];
+    private readonly Dictionary<string, Shader> Shaders = [];
     private readonly Dictionary<string, Material> ShaderMaterials = [];
     private readonly CustomVariantNameManager VariantManager = variantManager;
 
@@ -103,6 +104,41 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         }
     }
 
+    public MMaterial InitMaterial(JObject jmaterial)
+    {
+        var mmaterial = new MMaterial();
+        jmaterial.Remove("Name");
+        jmaterial.Remove("Material");
+        if (TryGetJShader(jmaterial, "Shader", out var shader)) 
+        {
+            mmaterial.shader = shader;
+            jmaterial.Remove("Shader");
+        };
+        foreach (var pair in jmaterial)
+        {
+            switch (pair.Value.Type)
+            {
+                case JTokenType.Integer:
+                    mmaterial.integers.Add(pair.Key, (int)pair.Value);
+                    break;
+                case JTokenType.Float:
+                    mmaterial.floats.Add(pair.Key, (float)pair.Value);
+                    break;
+                case JTokenType.Boolean:
+                    if ((bool)pair.Value)
+                    {
+                        mmaterial.enableKeywords.Add(pair.Key);
+                    }
+                    else
+                    {
+                        mmaterial.disableKeywords.Add(pair.Key);
+                    }
+                    break;
+            }
+        }
+        return mmaterial;
+    }
+
     // UNITY COMPONENTS //
     public MTransform InitTransform(JObject jcomponent)
     {
@@ -115,6 +151,36 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         return mcomponent;
     }
 
+    public IMRenderable InitRenderable(JObject jcomponent, IMRenderable mcomponent)
+    {
+        if (jcomponent.TryGetValue("Material", out var jmat))
+        {
+            switch (jmat.Type)
+            {
+                case JTokenType.String:
+                    if (TryGetMaterial((string)jmat, out var mat))
+                    {
+                        mcomponent.Material = mat;
+                    }
+                    break;
+                case JTokenType.Object:
+                    var jmaterial = (JObject)jmat;
+                    if (TryGetJMaterial(jmaterial, "Name", out mat) || 
+                        TryGetJMaterial(jmaterial, "Material", out mat))
+                    {
+                        mcomponent.Material = mat;
+                    }
+                    mcomponent.MMaterial = InitMaterial(jmaterial);
+                    break;
+            }
+        }
+        else if (TryGetJShaderMaterial(jcomponent, "Shader", out var mat))
+        {
+            mcomponent.Material = mat;
+        }
+        return mcomponent;
+    }
+
     public MSpriteRenderer InitSpriteRenderer(JObject jcomponent)
     {
         var mcomponent = new MSpriteRenderer();
@@ -123,28 +189,28 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         JValue jval;
         if (TryGetJValue(jcomponent, "FlipX", JTokenType.Boolean, out jval)) mcomponent.flipX = (bool)jval;
         if (TryGetJValue(jcomponent, "FlipY", JTokenType.Boolean, out jval)) mcomponent.flipY = (bool)jval;
-        Material mat;
-        if (TryGetJMaterial(jcomponent, "Material", out mat) || 
-            TryGetJShader(jcomponent, "Shader", out mat))
-            mcomponent.material = mat;
+        InitRenderable(jcomponent, mcomponent);
         return mcomponent;
     }
 
     public MImage InitImage(JObject jcomponent)
     {
         var mcomponent = new MImage();
-        Material mat;
-        if (TryGetJMaterial(jcomponent, "Material", out mat) ||
-            TryGetJShader(jcomponent, "Shader", out mat))
-            mcomponent.material = mat;
+        InitRenderable(jcomponent, mcomponent);
         return mcomponent;
     }
 
     // MONOBEHAVIOURS //
+    public MBehaviour InitBehaviour(JObject jcomponent, MBehaviour mcomponent)
+    {
+        if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
+        return mcomponent;
+    }
+
     public MParallaxObjectScript InitParallaxObjectScript(JObject jcomponent)
     {
         var mcomponent = new MParallaxObjectScript();
-        if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
+        InitBehaviour(jcomponent, mcomponent);
         float jfloat;
         if (TryGetJFloat(jcomponent, "ParallaxScale", out jfloat)) mcomponent.parallaxScale = jfloat;
         if (TryGetJFloat(jcomponent, "LoopDistance", out jfloat)) mcomponent.loopDistance = jfloat;
@@ -154,7 +220,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     public MCustomSpriteSwapper InitCustomSpriteSwapper(JObject jcomponent, SceneKey scene)
     {
         var mcomponent = new MCustomSpriteSwapper();
-        if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
+        InitBehaviour(jcomponent, mcomponent);
         if (jcomponent.TryGetValue("Variants", out var jvariants))
         {
             switch (jvariants.Type)
@@ -424,38 +490,43 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         return jcolor;
     }
 
-    public bool TryGetJMaterial(JObject jobj, string key, out Material mat)
+    public bool TryGetJMaterial(JObject jobj, string key, out Material material)
     {
         if (!TryGetJValue(jobj, key, JTokenType.String, out var jmatName))
         {
-            mat = null;
+            material = null;
             return false;
         }
         string matName = (string)jmatName;
-        if (!Materials.ContainsKey(matName))
+        return TryGetMaterial(matName, out material);
+    }
+
+    public bool TryGetMaterial(string name, out Material material)
+    {
+        if (!Materials.ContainsKey(name))
         {
-            Material found = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(s => s.name == matName) ??
-                Resources.Load<Material>($"Materials/{matName}");
+            Material found = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(s => s.name == name) ??
+                Resources.Load<Material>($"Materials/{name}");
             if (!found)
             {
-                logger.LogWarning($"JSON material \"{matName}\" could not be found");
-                Materials[matName] = null;
+                logger.LogWarning($"JSON material \"{name}\" could not be found");
+                Materials[name] = null;
             }
             else
             {
-                Materials[matName] = found;
+                Materials[name] = found;
             }
         }
 
-        mat = Materials[matName];
-        if (!mat)
+        material = Materials[name];
+        if (!material)
         {
             return false;
         }
         return true;
     }
 
-    public bool TryGetJShader(JObject jobj, string key, out Material mat)
+    public bool TryGetJShaderMaterial(JObject jobj, string key, out Material mat)
     {
         if (!TryGetJValue(jobj, key, JTokenType.String, out var jshaderName))
         {
@@ -465,21 +536,52 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         string shaderName = (string)jshaderName;
         if (!ShaderMaterials.ContainsKey(shaderName))
         {
-            Shader found = Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(s => s.name == shaderName) ??
-                           Shader.Find(shaderName);
-            if (!found)
+            if (TryGetShader(shaderName, out var shader))
             {
-                logger.LogWarning($"JSON shader \"{shaderName}\" could not be found");
-                ShaderMaterials[shaderName] = null;
+                ShaderMaterials[shaderName] = new Material(shader);
             }
             else
             {
-                ShaderMaterials[shaderName] = new Material(found);
+                ShaderMaterials[shaderName] = null;
             }
         }
-
         mat = ShaderMaterials[shaderName];
         if (!mat)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    public bool TryGetJShader(JObject jobj, string key, out Shader shader)
+    {
+        if (!TryGetJValue(jobj, key, JTokenType.String, out var jshaderName))
+        {
+            shader = null;
+            return false;
+        }
+        string shaderName = (string)jshaderName;
+        return TryGetShader(shaderName, out shader);
+    }
+
+    public bool TryGetShader(string name, out Shader shader)
+    {
+        if (!Shaders.ContainsKey(name))
+        {
+            Shader found = Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(s => s.name == name) ??
+                   Shader.Find(name);
+            if (!found)
+            {
+                logger.LogWarning($"JSON shader \"{name}\" could not be found");
+                Shaders[name] = null;
+            }
+            else
+            {
+                Shaders[name] = found;
+            }
+        }
+        shader = Shaders[name];
+        if (!shader)
         {
             return false;
         }

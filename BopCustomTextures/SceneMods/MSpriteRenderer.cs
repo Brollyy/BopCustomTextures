@@ -5,13 +5,17 @@ namespace BopCustomTextures.SceneMods;
 /// <summary>
 /// Scene mod SpriteRenderer definition
 /// </summary>
-public class MSpriteRenderer : MComponent
+public class MSpriteRenderer : MComponent, IMRenderable
 {
     public Color? color;
     public Vector2? size;
     public bool? flipX;
     public bool? flipY;
     public Material material;
+    public MMaterial mmaterial;
+
+    public Material Material { get => material; set => material = value; }
+    public MMaterial MMaterial { get => mmaterial; set => mmaterial = value; }
 
     public void Apply(SpriteRenderer component)
     {
@@ -20,5 +24,6 @@ public class MSpriteRenderer : MComponent
         if (flipX != null) component.flipX = (bool)flipX;
         if (flipY != null) component.flipY = (bool)flipY;
         if (material != null) component.material = material;
+        if (mmaterial != null) component.material = mmaterial.Apply(component.material);
     }
 }
