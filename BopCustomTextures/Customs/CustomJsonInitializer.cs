@@ -116,6 +116,11 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
             mmaterial.shader = shader;
             jmaterial.Remove("Shader");
         };
+        if (TryGetJColor(jmaterial, "Color", out var color))
+        {
+            mmaterial.color = color;
+            jmaterial.Remove("Color");
+        }
         foreach (var pair in jmaterial)
         {
             switch (pair.Value.Type)

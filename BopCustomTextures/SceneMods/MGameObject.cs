@@ -9,7 +9,7 @@ namespace BopCustomTextures.SceneMods;
 /// Scene mod GameObject definition. Includes no reference to the GameObject to modify, only a path to it.
 /// </summary>
 /// <param name="name">Name of/Path to GameObject to modify</param>
-public class MGameObject(string name)
+public class MGameObject(string name): MObject
 {
     public string name = name;
     public bool? active;

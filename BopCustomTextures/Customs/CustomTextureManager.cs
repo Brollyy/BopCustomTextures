@@ -59,7 +59,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
     public readonly HashSet<Sprite> CustomSprites = [];
 
     /// <summary>
-    /// Maps a vanilla texture to its scenekey and sprite atlas index if a sprite atlas texture.
+    /// Maps a vanilla texture to its scenekey and sprite atlas index of a sprite atlas texture.
     /// For sprite atlas textures this can be solely determined by name, but otherwise it has to be determined via a name matching search.
     /// </summary>
     public readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
@@ -179,7 +179,9 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         else if (SeperateTextures[scene][name].ContainsKey(variant))
         {
             logger.LogWarning($"Duplicate seperate texture for {scene} ~ {name}");
-            Object.Destroy(SeperateTextures[scene][name][variant]);
+            var oldTex = SeperateTextures[scene][name][variant];
+            SeperateTexturesNotInited[scene].Remove(oldTex);
+            Object.Destroy(oldTex);
         }
         SeperateTextures[scene][name][variant] = tex;
         SeperateTexturesNotInited[scene][tex] = (name, variant);

@@ -7,7 +7,7 @@ namespace BopCustomTextures.SceneMods;
 /// </summary>
 /// <param name="mobj">MGameObject describing modifications to make to the GameObject.</param>
 /// <param name="obj">GameObject to modify.</param>
-public class MGameObjectResolved(MGameObject mobj, GameObject obj)
+public class MGameObjectResolved(MGameObject mobj, GameObject obj): MObject
 {
     public MGameObject mobj = mobj;
     public GameObject obj = obj;
@@ -19,15 +19,6 @@ public class MGameObjectResolved(MGameObject mobj, GameObject obj)
         foreach (var childObj in childObjs)
         {
             childObj.Apply();
-        }
-    }
-
-    public void ApplyOnlyDeferred()
-    {
-        mobj.ApplyDeferred(obj);
-        foreach (var childObj in childObjs)
-        {
-            childObj.ApplyOnlyDeferred();
         }
     }
 }

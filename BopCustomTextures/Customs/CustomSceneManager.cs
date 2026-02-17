@@ -143,7 +143,7 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
             return;
         }
         logger.LogInfo($"Applying custom scene (deferred): {sceneKey}");
-        ResolveGameObject(rootObj, mobj).ApplyOnlyDeferred();
+        ResolveGameObject(rootObj, mobj).Apply();
     }
 
     public void PrepareEvents(MixtapeLoaderCustom __instance, Entity[] entities)
