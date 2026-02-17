@@ -90,6 +90,8 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         {
             case "Transform":
                 return InitTransform(jcomponent);
+            case "Camera":
+                return InitCamera(jcomponent);
             case "SpriteRenderer":
                 return InitSpriteRenderer(jcomponent);
             case "Image":
@@ -148,6 +150,15 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
         if (TryGetJEulerAngles(jcomponent, "LocalEulerAngles", out vector3)) mcomponent.localEulerAngles = vector3;
         if (TryGetJVector3(jcomponent, "LocalEulerAngles", out vector3)) mcomponent.localEulerAngles = vector3;
         if (TryGetJVector3(jcomponent, "LocalScale", out vector3)) mcomponent.localScale = vector3;
+        return mcomponent;
+    }
+    public MCamera InitCamera(JObject jcomponent)
+    {
+        var mcomponent = new MCamera();
+        if (TryGetJValue(jcomponent, "Orthographic", JTokenType.Boolean, out var jval)) mcomponent.orthographic = (bool)jval;
+        if (TryGetJFloat(jcomponent, "OrthographicSize", out var jfloat)) mcomponent.orthographicSize = jfloat;
+        if (TryGetJFloat(jcomponent, "Aspect", out jfloat)) mcomponent.aspect = jfloat;
+        if (TryGetJColor(jcomponent, "BackgroundColor", out var color)) mcomponent.backgroundColor = color;
         return mcomponent;
     }
 

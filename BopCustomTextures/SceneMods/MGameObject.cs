@@ -27,6 +27,9 @@ public class MGameObject(string name)
                 case MTransform mtransform:
                     mtransform.Apply(obj.transform);
                     break;
+                case MCamera mcamera:
+                    if (obj.TryGetComponent<Camera>(out var camera)) mcamera.Apply(camera);
+                    break;
                 case MSpriteRenderer mspriteRenderer:
                     if (obj.TryGetComponent<SpriteRenderer>(out var spriteRenderer)) mspriteRenderer.Apply(spriteRenderer);
                     break;
