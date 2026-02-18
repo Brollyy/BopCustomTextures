@@ -15,10 +15,10 @@ namespace BopCustomTextures.Customs;
 /// </summary>
 /// <param name="logger">Plugin-specific logger</param>
 /// <param name="variantManager">Used for mapping custom texture variant external names to internal indices. Passed to CustomJsonInitializer.</param>
-/// <param name="sceneModTemplate">Mixtape event template for applying scene mods.</param>
-public class CustomSceneManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate sceneModTemplate) : BaseCustomManager(logger)
+/// <param name="mixtapeEventTemplate">Mixtape event template for applying scene mods.</param>
+public class CustomSceneManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate mixtapeEventTemplate) : BaseCustomManager(logger)
 {
-    public MixtapeEventTemplate sceneModTemplate = sceneModTemplate;
+    public MixtapeEventTemplate mixtapeEventTemplate = mixtapeEventTemplate;
     public CustomJsonInitializer jsonInitializer = new CustomJsonInitializer(logger, variantManager);
     public readonly Dictionary<SceneKey, Dictionary<string, MGameObject>> CustomScenes = [];
     public static readonly Regex PathRegex = new Regex(@"[\\/](?:level|scene)s?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -29,14 +29,13 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
         return PathRegex.IsMatch(path);
     }
 
-    public int LocateCustomScenes(string path, string parentPath, uint release)
+    public int LocateCustomScenes(string path, uint release)
     {
         int filesLoaded = 0;
-        var fullFilepaths = Directory.EnumerateFiles(path);
-        foreach (var fullFilepath in fullFilepaths)
+        var filepaths = Directory.EnumerateFiles(path);
+        foreach (var filepath in filepaths)
         {
-            var localFilepath = fullFilepath.Substring(parentPath.Length + 1);
-            if (CheckIsCustomScene(fullFilepath, localFilepath, release))
+            if (CheckIsCustomScene(filepath, release))
             {
                 filesLoaded++;
             }
@@ -44,9 +43,9 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
         return filesLoaded;
     }
 
-    public bool CheckIsCustomScene(string path, string localPath, uint release)
+    public bool CheckIsCustomScene(string path, uint release)
     {
-        Match match = FileRegex.Match(localPath);
+        Match match = FileRegex.Match(path);
         if (match.Success)
         {
             SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
@@ -195,12 +194,12 @@ public class CustomSceneManager(ILogger logger, CustomVariantNameManager variant
     {
         if (CustomScenes.Count < 1)
         {
-            sceneModTemplate.properties["scene"] = "";
+            mixtapeEventTemplate.properties["scene"] = "";
             return false;
         }
         else
         {
-            sceneModTemplate.properties["scene"] = new MixtapeEventTemplates.ChoiceField<string>(
+            mixtapeEventTemplate.properties["scene"] = new MixtapeEventTemplates.ChoiceField<string>(
                 CustomScenes.Keys.Select(FromSceneKeyOrInvalid).ToArray());
             return true;
         }

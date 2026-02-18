@@ -5,11 +5,12 @@ namespace BopCustomTextures.SceneMods;
 /// <summary>
 /// Scene mod MonoBehaviour definition
 /// </summary>
-public abstract class MBehaviour : MComponent
+public abstract class MBehaviour<T> : MComponent<T> where T: Behaviour
 {
     public bool? enabled;
-    public void Apply(Behaviour component)
+    public override T Apply(T component)
     {
         if (enabled != null) component.enabled = (bool)enabled;
+        return component;
     }
 }

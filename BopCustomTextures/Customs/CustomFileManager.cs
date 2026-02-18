@@ -20,7 +20,8 @@ public class CustomFileManager(ILogger logger, string tempPath) : BaseCustomMana
             var subpaths = Directory.EnumerateDirectories(tempPath);
             foreach (var subpath in subpaths)
             {
-                if (CustomSceneManager.IsCustomSceneDirectory(subpath) ||
+                if (CustomManager.IsCustomResourceDirectory(subpath) ||
+                    CustomSceneManager.IsCustomSceneDirectory(subpath) ||
                     CustomTextureManager.IsCustomTextureDirectory(subpath)
                     )
                 {

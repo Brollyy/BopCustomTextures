@@ -7,7 +7,7 @@ namespace BopCustomTextures.SceneMods;
 /// <summary>
 /// Scene mod UI.Image definition
 /// </summary>
-public class MImage : MComponent, IMRenderable
+public class MImage : MComponent<Image>, IMRenderable
 {
     public Material material;
     public MMaterial mmaterial;
@@ -15,18 +15,10 @@ public class MImage : MComponent, IMRenderable
     public Material Material { get => material; set => material = value; }
     public MMaterial MMaterial { get => mmaterial; set => mmaterial = value; }
 
-    public void Apply(Image component)
+    public override Image Apply(Image component)
     {
         if (material != null) component.material = material;
-        if (mmaterial != null) 
-        {
-            
-            component.material = mmaterial.Apply(component.material);
-            foreach (var keyword in component.material.enabledKeywords)
-            {
-                Console.WriteLine(keyword);
-            }
-            
-        }
+        if (mmaterial != null) component.material = mmaterial.Apply(component.material);
+        return component;
     }
 }

@@ -217,7 +217,7 @@ public class CustomJsonInitializer(ILogger logger, CustomVariantNameManager vari
     }
 
     // MONOBEHAVIOURS //
-    public MBehaviour InitBehaviour(JObject jcomponent, MBehaviour mcomponent)
+    public MBehaviour<T> InitBehaviour<T>(JObject jcomponent, MBehaviour<T> mcomponent) where T: Behaviour
     {
         if (TryGetJValue(jcomponent, "Enabled", JTokenType.Boolean, out var jbool)) mcomponent.enabled = (bool)jbool;
         return mcomponent;

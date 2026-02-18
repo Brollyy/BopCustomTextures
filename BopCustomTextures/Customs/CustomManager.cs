@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace BopCustomTextures.Customs;
 
@@ -30,22 +31,29 @@ public class CustomManager : BaseCustomManager
     
     public Dictionary<string, List<MixtapeEventTemplate>> entities;
 
+    public static readonly Regex PathRegex = new Regex(@"[\\/](?:res(?:ource)?s?|BopCustomTextures)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <param name="logger">Plugin-specific logger.</param>
     /// <param name="tempPath">Where to temporarily save source files in custom mixtape while custom mixtape is loaded.</param>
     /// <param name="sceneModTemplate">Mixtape event template for applying scene mods.</param>
-    /// <param name="textureVariantTemplates">Mixtape event templates concerning custom textures.</param>
+    /// <param name="textureTemplates">Mixtape event templates concerning custom textures.</param>
     /// <param name="entities">List of all mixtape event catagories and events.</param>
     public CustomManager(ILogger logger, 
         string tempPath, 
         MixtapeEventTemplate sceneModTemplate, 
-        MixtapeEventTemplate[] textureVariantTemplates,
+        MixtapeEventTemplate[] textureTemplates,
         Dictionary<string, List<MixtapeEventTemplate>> entities) : base(logger)
     {
         variantManager = new CustomVariantNameManager(logger);
         sceneManager = new CustomSceneManager(logger, variantManager, sceneModTemplate);
-        textureManager = new CustomTextureManager(logger, variantManager, textureVariantTemplates);
+        textureManager = new CustomTextureManager(logger, variantManager, textureTemplates);
         fileManager = new CustomFileManager(logger, tempPath);
         this.entities = entities;
+    }
+
+    public static bool IsCustomResourceDirectory(string path)
+    {
+        return PathRegex.IsMatch(path);
     }
 
     public void ReadDirectory(string path, bool backup, bool upgrade, Display displayEventTemplates, int eventTemplatesIndex)
@@ -72,29 +80,21 @@ public class CustomManager : BaseCustomManager
         }
 
         int filesLoaded = 0;
+        bool hasResourceFolder = false;
         var subpaths = Directory.EnumerateDirectories(path);
         foreach (var subpath in subpaths)
         {
-            if (CustomTextureManager.IsCustomTextureDirectory(subpath))
+            if (IsCustomResourceDirectory(subpath))
             {
-                filesLoaded += textureManager.LocateCustomTextures(subpath, path);
-                if (backup)
-                {
-                    fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
-                }
+                hasResourceFolder = true;
+                filesLoaded += ReadDirectoryInternal(subpath, path, backup);
             }
         }
-        foreach (var subpath in subpaths)
+        if (!hasResourceFolder)
         {
-            if (CustomSceneManager.IsCustomSceneDirectory(subpath))
-            {
-                filesLoaded += sceneManager.LocateCustomScenes(subpath, path, release);
-                if (backup)
-                {
-                    fileManager.BackupDirectory(subpath, subpath.Substring(path.Length + 1));
-                }
-            }
+            filesLoaded += ReadDirectoryInternal(path, path, backup);
         }
+
         if (filesLoaded > 0)
         {
             logger.LogInfo($"Loaded {filesLoaded} custom assets");
@@ -112,6 +112,35 @@ public class CustomManager : BaseCustomManager
             logger.LogInfo("No custom assets found");
         }
         UpdateEventTemplates(displayEventTemplates, eventTemplatesIndex);
+    }
+
+    public int ReadDirectoryInternal(string path, string parentPath, bool backup)
+    {
+        int filesLoaded = 0;
+        var subpaths = Directory.EnumerateDirectories(path);
+        foreach (var subpath in subpaths)
+        {
+            if (CustomTextureManager.IsCustomTextureDirectory(subpath))
+            {
+                filesLoaded += textureManager.LocateCustomTextures(subpath);
+                if (backup)
+                {
+                    fileManager.BackupDirectory(subpath, subpath.Substring(parentPath.Length + 1));
+                }
+            }
+        }
+        foreach (var subpath in subpaths)
+        {
+            if (CustomSceneManager.IsCustomSceneDirectory(subpath))
+            {
+                filesLoaded += sceneManager.LocateCustomScenes(subpath, release);
+                if (backup)
+                {
+                    fileManager.BackupDirectory(subpath, subpath.Substring(parentPath.Length + 1));
+                }
+            }
+        }
+        return filesLoaded;
     }
 
     public void WriteDirectory(string path, bool upgrade)

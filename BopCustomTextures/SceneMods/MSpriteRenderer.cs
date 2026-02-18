@@ -5,7 +5,7 @@ namespace BopCustomTextures.SceneMods;
 /// <summary>
 /// Scene mod SpriteRenderer definition
 /// </summary>
-public class MSpriteRenderer : MComponent, IMRenderable
+public class MSpriteRenderer : MComponent<SpriteRenderer>, IMRenderable
 {
     public Color? color;
     public Vector2? size;
@@ -17,7 +17,7 @@ public class MSpriteRenderer : MComponent, IMRenderable
     public Material Material { get => material; set => material = value; }
     public MMaterial MMaterial { get => mmaterial; set => mmaterial = value; }
 
-    public void Apply(SpriteRenderer component)
+    public override SpriteRenderer Apply(SpriteRenderer component)
     {
         if (color != null) component.color = ApplyColor((Color)color, component.color);
         if (size != null) component.size = ApplyVector2((Vector2)size, component.size);
@@ -25,5 +25,6 @@ public class MSpriteRenderer : MComponent, IMRenderable
         if (flipY != null) component.flipY = (bool)flipY;
         if (material != null) component.material = material;
         if (mmaterial != null) component.material = mmaterial.Apply(component.material);
+        return component;
     }
 }

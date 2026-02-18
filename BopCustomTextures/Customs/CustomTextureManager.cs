@@ -19,6 +19,12 @@ namespace BopCustomTextures.Customs;
 /// <param name="mixtapeEventTemplates">BopCustomTexture mixtape event templates concerning custom textures.</param>
 public class CustomTextureManager(ILogger logger, CustomVariantNameManager variantManager, MixtapeEventTemplate[] mixtapeEventTemplates) : BaseCustomManager(logger)
 {
+    public static class Operation
+    {
+        public const byte Add = 0;
+        public const byte Remove = 1;
+        public const byte Set = 2;
+    }
     /// <summary>
     /// BopCustomTexture mixtape event templates concerning custom textures. 
     /// Updated to only include scenes with custom textures as options in their "scene" parameters.
@@ -49,7 +55,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
 
     /// <summary>
     /// Mapping of vanilla sprites to custom sprites. Maps by 'Original Texture Object' -> 'Original Sprite Name' 
-    /// because just mapping just by Original Sprite object didn't work when I tried it.
+    /// because just mapping by Original Sprite object didn't work when I tried it.
     /// </summary>
     public readonly Dictionary<Texture2D, Dictionary<string, Dictionary<int, Sprite>>> SpriteMaps = [];
 
@@ -60,7 +66,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
 
     /// <summary>
     /// Maps a vanilla texture to its scenekey and sprite atlas index of a sprite atlas texture.
-    /// For sprite atlas textures this can be solely determined by name, but otherwise it has to be determined via a name matching search.
+    /// For sprite atlas textures this can be solely determined by name, but otherwise it has to be determined via a sprite name matching search.
     /// </summary>
     public readonly Dictionary<Texture2D, (SceneKey, int)> TextureMaps = [];
 
@@ -74,12 +80,16 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
     /// <summary>
     /// Used to map external custom texture variant names to their internal indices. Shared with CustomJsonInitializer.
     /// </summary>
-    public CustomVariantNameManager VariantManager = variantManager;
+    public readonly CustomVariantNameManager VariantManager = variantManager;
 
-    public static readonly Regex PathRegex = new Regex(@"[\\/]text?u?r?e?s?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    public static readonly Regex FileRegex = new Regex(@"^text?u?r?e?s?[\\/](\w+)[^\w\\/]*(\w+)?[\\/].*?([^\\/]*\.(?:png|j(?:pe?g|pe|f?if|fi)))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex PathRegex = new Regex(@"[\\/]tex(?:ture)?s?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex SubpathRegex = new Regex(@"[\\/]([a-z]+)(?:[^a-z\\/]*|[^a-z\\/]+?(\w+))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    public static readonly Regex VariantFolderRegex = new Regex(@"[\\/]_(\w*)$", RegexOptions.Compiled);
+
+    public static readonly Regex FileRegex = new Regex(@"\.(?:png|j(?:pe?g|pe|f?if|fi))$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     public static readonly Regex FileRegexAtlas = new Regex(@"^sactx-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     public static readonly Regex FileRegexSeperate = new Regex(@"^(\w+)", RegexOptions.Compiled);
+
     public static readonly Regex SceneAndSpriteAtlasIndexRegex = new Regex(@"^sactx-(\d+)-\d+x\d+-DXT5\|BC3-_(\w+)Atlas", RegexOptions.Compiled);
     public static readonly Regex MixtapeEventRegex = new Regex(@"^(\w*)/(\w*) texture variant$", RegexOptions.Compiled);
 
@@ -88,58 +98,80 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         return PathRegex.IsMatch(path);
     }
 
-    public int LocateCustomTextures(string path, string parentPath)
+    public int LocateCustomTextures(string path)
     {
         int filesLoaded = 0;
-        var fullFilepaths = Directory.EnumerateFiles(path);
-        foreach (var fullFilepath in fullFilepaths)
+        var subpaths = Directory.EnumerateDirectories(path);
+        foreach (var subpath in subpaths)
         {
-            var localFilepath = fullFilepath.Substring(parentPath.Length + 1);
-            if (CheckIsCustomTexture(fullFilepath, localFilepath))
+            Match match = SubpathRegex.Match(subpath);
+            if (!match.Success)
             {
-                filesLoaded++;
+                continue;
             }
-        }
-        var fullSubpaths = Directory.EnumerateDirectories(path);
-        foreach (var fullSubpath in fullSubpaths)
-        {
-            filesLoaded += LocateCustomTextures(fullSubpath, parentPath);
+            SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
+            if (scene == SceneKey.Invalid)
+            {
+                continue;
+            }
+            int variant = VariantManager.GetOrAddVariant(scene, match.Groups[2].Value);
+            filesLoaded += LocateCustomTexturesRecursive(subpath, scene, variant);
         }
         return filesLoaded;
     }
 
-    public bool CheckIsCustomTexture(string path, string localPath)
+    public int LocateCustomTexturesRecursive(string path, SceneKey scene, int variant)
     {
-        Match match = FileRegex.Match(localPath);
+        int filesLoaded = 0;
+        var filepaths = Directory.EnumerateFiles(path);
+        foreach (var filepath in filepaths)
+        {
+            if (CheckIsCustomTexture(filepath, scene, variant))
+            {
+                filesLoaded++;
+            }
+        }
+        var subpaths = Directory.EnumerateDirectories(path);
+        foreach (var subpath in subpaths)
+        {
+            int variant2 = variant;
+            Match match = VariantFolderRegex.Match(subpath);
+            if (match.Success)
+            {
+                variant2 = VariantManager.GetOrAddVariant(scene, match.Groups[1].Value);
+            }
+            filesLoaded += LocateCustomTexturesRecursive(subpath, scene, variant2);
+        }
+        return filesLoaded;
+    }
+
+    public bool CheckIsCustomTexture(string path, SceneKey scene, int variant)
+    {
+        if (!FileRegex.IsMatch(path))
+        {
+            return false;
+        }
+        string filename = Path.GetFileName(path);
+        Match match = FileRegexAtlas.Match(filename);
         if (match.Success)
         {
-            SceneKey scene = ToSceneKeyOrInvalid(match.Groups[1].Value);
-            if (scene != SceneKey.Invalid)
-            {
-                int variant = VariantManager.GetOrAddVariant(scene, match.Groups[2].Value);
-                string filename = match.Groups[3].Value;
-                Match match2 = FileRegexAtlas.Match(filename);
-                if (match2.Success)
-                {
-                    logger.LogFileLoading($"Found custom atlas texture: {scene} ~ {filename}");
-                    LoadCustomAtlasTexture(path, localPath, filename, scene, int.Parse(match2.Groups[1].Value), variant);
-                    return true;
-                }
-                Match match3 = FileRegexSeperate.Match(filename);
-                if (match3.Success)
-                {
-                    logger.LogFileLoading($"Found custom seperate texture: {scene} ~ {filename}");
-                    LoadCustomSeperateTexture(path, localPath, filename, scene, match3.Groups[1].Value, variant);
-                    return true;
-                }
-            }
+            logger.LogFileLoading($"Found custom atlas texture: {scene} ~ {filename}");
+            LoadCustomAtlasTexture(path, scene, int.Parse(match.Groups[1].Value), variant);
+            return true;
+        }
+        match = FileRegexSeperate.Match(filename);
+        if (match.Success)
+        {
+            logger.LogFileLoading($"Found custom seperate texture: {scene} ~ {filename}");
+            LoadCustomSeperateTexture(path, scene, match.Groups[1].Value, variant);
+            return true;
         }
         return false;
     }
 
-    public void LoadCustomAtlasTexture(string path, string localPath, string filename, SceneKey scene, int index, int variant)
+    public void LoadCustomAtlasTexture(string path, SceneKey scene, int index, int variant)
     {
-        Texture2D tex = LoadImage(path, localPath, filename);
+        Texture2D tex = LoadImage(path);
         if (tex == null)
         {
             return;
@@ -160,9 +192,9 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         AtlasTextures[scene][index][variant] = tex;
     }
 
-    public void LoadCustomSeperateTexture(string path, string localPath, string filename, SceneKey scene, string name, int variant)
+    public void LoadCustomSeperateTexture(string path, SceneKey scene, string name, int variant)
     {
-        Texture2D tex = LoadImage(path, localPath, filename);
+        Texture2D tex = LoadImage(path);
         if (tex == null)
         {
             return;
@@ -187,13 +219,14 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         SeperateTexturesNotInited[scene][tex] = (name, variant);
     }
 
-    public Texture2D LoadImage(string path, string localPath, string filename)
+    public Texture2D LoadImage(string path)
     {
+        string filename = Path.GetFileName(path);
         byte[] bytes = File.ReadAllBytes(path);
         Texture2D tex = new Texture2D(2, 2);
         if (!tex.LoadImage(bytes))
         {
-            logger.LogWarning($"Couldn't load custom texture: {localPath} (is it a PNG/JPG?)");
+            logger.LogWarning($"Couldn't load custom texture: {filename} (is it a PNG/JPG?)");
             Object.Destroy(tex);
             return null;
         }
@@ -306,14 +339,14 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         var match = MixtapeEventRegex.Match(entity.dataModel);
         if (match.Success)
         {
-            byte operation = 0;
+            byte operation = Operation.Add;
             if (match.Groups[2].Value == "remove")
             {
-                operation = 1;
+                operation = Operation.Remove;
             }
             else if (match.Groups[2].Value == "set")
             {
-                operation = 2;
+                operation = Operation.Set;
             }
             else if (match.Groups[2].Value != "add")
             {
@@ -327,7 +360,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
         }
     }
 
-    public void PrepareVariantEvent(MixtapeLoaderCustom __instance, Entity entity, int operation, Dictionary<SceneKey, CustomSpriteSwapper[]> sceneSpriteSwappers)
+    public void PrepareVariantEvent(MixtapeLoaderCustom __instance, Entity entity, byte operation, Dictionary<SceneKey, CustomSpriteSwapper[]> sceneSpriteSwappers)
     {
         Dictionary<SceneKey, List<int>> scenes;
         var sceneStr = entity.GetString("scene");
@@ -390,7 +423,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
 
         switch (operation)
         {
-            case 0: // add
+            case Operation.Add:
                 __instance.scheduler.Schedule(entity.beat, delegate
                 {
                     foreach (var pair in scenes)
@@ -408,7 +441,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
                     }
                 });
                 break;
-            case 1: // remove
+            case Operation.Remove:
                 __instance.scheduler.Schedule(entity.beat, delegate
                 {
                     foreach (var pair in scenes)
@@ -425,7 +458,7 @@ public class CustomTextureManager(ILogger logger, CustomVariantNameManager varia
                     }
                 });
                 break;
-            case 2: // set
+            case Operation.Set:
                 __instance.scheduler.Schedule(entity.beat, delegate
                 {
                     foreach (var pair in scenes)

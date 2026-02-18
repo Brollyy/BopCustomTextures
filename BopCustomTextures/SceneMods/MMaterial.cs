@@ -8,7 +8,7 @@ namespace BopCustomTextures.SceneMods;
 /// <summary>
 /// Scene mod material definition.
 /// </summary>
-public class MMaterial: MObject
+public class MMaterial: MObject<Material>
 {
     public Shader shader;
     public Color? color;
@@ -17,7 +17,7 @@ public class MMaterial: MObject
     public List<string> disableKeywords = [];
     public List<string> enableKeywords = [];
 
-    public Material Apply(Material material)
+    public override Material Apply(Material material)
     {
         material = new Material(material); // TODO: this certainly isn't performant but whatever
         if (shader != null) material.shader = shader;

@@ -9,7 +9,7 @@ namespace BopCustomTextures.SceneMods;
 /// Scene mod GameObject definition. Includes no reference to the GameObject to modify, only a path to it.
 /// </summary>
 /// <param name="name">Name of/Path to GameObject to modify</param>
-public class MGameObject(string name): MObject
+public class MGameObject(string name): MObject<GameObject>
 {
     public string name = name;
     public bool? active;
@@ -17,7 +17,7 @@ public class MGameObject(string name): MObject
     public MGameObject[] childObjsDeferred;
     public MComponent[] components;
 
-    public void Apply(GameObject obj)
+    public override GameObject Apply(GameObject obj)
     {
         if (active != null) obj.SetActive((bool)active);
         foreach (var mcomponent in components)
@@ -42,11 +42,11 @@ public class MGameObject(string name): MObject
                 case MCustomSpriteSwapper mcustomSpriteSwapper:
                     if (obj.TryGetComponent<CustomSpriteSwapper>(out var customSpriteSwapper)) mcustomSpriteSwapper.Apply(customSpriteSwapper);
                     break;
-
             }
         }
 
         ApplyDeferred(obj);
+        return obj;
     }
 
     public void ApplyDeferred(GameObject obj)

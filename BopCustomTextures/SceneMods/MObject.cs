@@ -40,3 +40,8 @@ public abstract class MObject
         return dest;
     }
 }
+public abstract class MObject<T>: MObject where T: Object
+{
+    public abstract T Apply(T obj);
+}
+
